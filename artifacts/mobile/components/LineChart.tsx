@@ -1,77 +1,199 @@
-import { View, Text, StyleSheet } from "react-native";
+import { useMemo, useState, useRef } from "react";
+import { View, Text, StyleSheet, Pressable, PanResponder, LayoutChangeEvent } from "react-native";
 import Svg, { Path, Line, Text as SvgText, Circle, Defs, RadialGradient, Stop } from "react-native-svg";
 import { useColors } from "@/hooks/useColors";
 import { useLanguage } from "@/contexts/LanguageContext";
 
+type ChartMode = "day" | "week" | "month";
+
 interface LineChartProps {
   data: { hour: string; inCount: number; outCount: number }[];
+  dailyHistory?: { date: string; inCount: number; outCount: number }[];
 }
 
-const CHART_H = 110;
-const CHART_W = 300;
-const PAD_L   = 8;
-const PAD_R   = 8;
-const PAD_T   = 12;
-const PAD_B   = 22;
+const CHART_H = 140;
+const CHART_W = 320;
+const PAD_L = 8;
+const PAD_R = 8;
+const PAD_T = 12;
+const PAD_B = 22;
 const INNER_W = CHART_W - PAD_L - PAD_R;
 const INNER_H = CHART_H - PAD_T - PAD_B;
 
-const X_LABELS     = ["00:00", "06:00", "12:00", "18:00", "23:00"];
-const X_LABEL_HOURS = [0, 6, 12, 18, 23];
-
-// Ingang = green, Uitgang = blue
-const COLOR_IN  = "#00E5A0";
+const COLOR_IN = "#00E5A0";
 const COLOR_OUT = "#3D8EFF";
+
+interface Point {
+  label: string;
+  fullLabel: string;
+  inCount: number;
+  outCount: number;
+}
 
 function buildPath(points: { x: number; y: number }[]): string {
   if (points.length === 0) return "";
   const [first, ...rest] = points;
   let d = `M ${first.x} ${first.y}`;
-  for (const p of rest) {
-    d += ` L ${p.x} ${p.y}`;
-  }
+  for (const p of rest) d += ` L ${p.x} ${p.y}`;
   return d;
 }
 
-function toPoints(
-  data: { hour: string; inCount: number; outCount: number }[],
-  key: "inCount" | "outCount",
-  maxVal: number
-): { x: number; y: number }[] {
-  if (data.length === 0) return [];
-  return data.map((item) => {
-    const h = parseInt(item.hour, 10);
-    const x = PAD_L + (h / 23) * INNER_W;
-    const val = item[key];
-    const y = PAD_T + INNER_H - (maxVal > 0 ? (val / maxVal) * INNER_H : 0);
-    return { x, y };
-  });
+function xFor(index: number, total: number): number {
+  if (total <= 1) return PAD_L + INNER_W / 2;
+  return PAD_L + (index / (total - 1)) * INNER_W;
 }
 
-export function LineChart({ data }: LineChartProps) {
-  const colors = useColors();
-  const { t } = useLanguage();
-  const maxVal    = Math.max(...data.map((d) => Math.max(d.inCount, d.outCount)), 1);
-  const inPoints  = toPoints(data, "inCount", maxVal);
-  const outPoints = toPoints(data, "outCount", maxVal);
-  const inPath    = buildPath(inPoints);
-  const outPath   = buildPath(outPoints);
-  const hasData   = data.some((d) => d.inCount > 0 || d.outCount > 0);
+function yFor(value: number, max: number): number {
+  return PAD_T + INNER_H - (max > 0 ? (value / max) * INNER_H : 0);
+}
 
-  // Horizontal grid lines (3 levels)
+export function LineChart({ data, dailyHistory = [] }: LineChartProps) {
+  const colors = useColors();
+  const { t, locale } = useLanguage();
+  const [mode, setMode] = useState<ChartMode>("day");
+  const [scrubIndex, setScrubIndex] = useState<number | null>(null);
+  const [chartWidth, setChartWidth] = useState(CHART_W);
+  const widthRef = useRef(CHART_W);
+
+  const points: Point[] = useMemo(() => {
+    if (mode === "day") {
+      // Build full 24h with zeros for missing
+      const byHour = new Map<number, { inCount: number; outCount: number }>();
+      data.forEach((d) => {
+        const h = parseInt(d.hour, 10);
+        if (!Number.isNaN(h)) byHour.set(h, { inCount: d.inCount, outCount: d.outCount });
+      });
+      return Array.from({ length: 24 }, (_, h) => {
+        const v = byHour.get(h) ?? { inCount: 0, outCount: 0 };
+        return {
+          label: h % 6 === 0 || h === 23 ? `${String(h).padStart(2, "0")}:00` : "",
+          fullLabel: `${String(h).padStart(2, "0")}:00`,
+          inCount: v.inCount,
+          outCount: v.outCount,
+        };
+      });
+    }
+    const slice = mode === "week" ? dailyHistory.slice(-7) : dailyHistory.slice(-30);
+    return slice.map((d, i) => {
+      const date = new Date(d.date);
+      let label = "";
+      let fullLabel = d.date;
+      try {
+        if (mode === "week") {
+          label = date.toLocaleDateString(locale, { weekday: "short" });
+          fullLabel = date.toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "short" });
+        } else {
+          // month: show every ~5th label
+          const dd = date.getDate();
+          label = i % 5 === 0 || i === slice.length - 1 ? String(dd) : "";
+          fullLabel = date.toLocaleDateString(locale, { day: "numeric", month: "short" });
+        }
+      } catch {
+        label = mode === "week" ? d.date.slice(-2) : String(date.getDate());
+      }
+      return { label, fullLabel, inCount: d.inCount, outCount: d.outCount };
+    });
+  }, [mode, data, dailyHistory, locale]);
+
+  const maxVal = Math.max(...points.map((p) => Math.max(p.inCount, p.outCount)), 1);
+  const inPts = points.map((p, i) => ({ x: xFor(i, points.length), y: yFor(p.inCount, maxVal) }));
+  const outPts = points.map((p, i) => ({ x: xFor(i, points.length), y: yFor(p.outCount, maxVal) }));
+  const inPath = buildPath(inPts);
+  const outPath = buildPath(outPts);
+  const hasData = points.some((p) => p.inCount > 0 || p.outCount > 0);
   const gridLines = [0.25, 0.5, 0.75, 1].map((frac) => PAD_T + INNER_H * (1 - frac));
+
+  const gridStroke = colors.border;
+  const baselineStroke = colors.border;
+  const labelFill = colors.textTertiary;
+
+  const title =
+    mode === "day"
+      ? t("chart.titleDay")
+      : mode === "week"
+      ? t("chart.titleWeek")
+      : t("chart.titleMonth");
+
+  // PanResponder for scrubbing
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: (e) => {
+        const x = e.nativeEvent.locationX;
+        updateScrub(x);
+      },
+      onPanResponderMove: (e) => {
+        const x = e.nativeEvent.locationX;
+        updateScrub(x);
+      },
+      onPanResponderRelease: () => setScrubIndex(null),
+      onPanResponderTerminate: () => setScrubIndex(null),
+    }),
+  ).current;
+
+  const pointsCountRef = useRef(points.length);
+  pointsCountRef.current = points.length;
+
+  function updateScrub(touchX: number) {
+    const w = widthRef.current;
+    const ratio = (touchX - (PAD_L * w) / CHART_W) / ((INNER_W * w) / CHART_W);
+    const total = pointsCountRef.current;
+    if (total === 0) return;
+    const idx = Math.round(ratio * (total - 1));
+    const clamped = Math.max(0, Math.min(total - 1, idx));
+    setScrubIndex(clamped);
+  }
+
+  const onLayout = (e: LayoutChangeEvent) => {
+    const w = e.nativeEvent.layout.width;
+    widthRef.current = w;
+    setChartWidth(w);
+  };
+
+  const scrubPoint = scrubIndex !== null ? points[scrubIndex] : null;
+  const scrubX = scrubIndex !== null ? xFor(scrubIndex, points.length) : 0;
 
   return (
     <View style={[styles.card, { backgroundColor: colors.surface1 }]}>
-      {/* Title + live dot */}
       <View style={styles.headerRow}>
-        <Text style={[styles.title, { color: colors.textTertiary }]}>
-          {t("chart.title")}
+        <Text style={[styles.title, { color: colors.textTertiary }]} numberOfLines={1}>
+          {title}
         </Text>
         <View style={styles.livePill}>
           <View style={[styles.liveDot, { backgroundColor: colors.green }]} />
           <Text style={[styles.livePillText, { color: colors.green }]}>{t("common.live")}</Text>
         </View>
+      </View>
+
+      {/* Mode tabs */}
+      <View style={[styles.tabs, { backgroundColor: colors.surface2, borderColor: colors.border }]}>
+        {(["day", "week", "month"] as const).map((m) => {
+          const active = mode === m;
+          return (
+            <Pressable
+              key={m}
+              onPress={() => {
+                setMode(m);
+                setScrubIndex(null);
+              }}
+              style={[
+                styles.tab,
+                active && { backgroundColor: colors.surface1 },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.tabText,
+                  { color: active ? colors.foreground : colors.textTertiary },
+                  active && { fontWeight: "700" },
+                ]}
+              >
+                {t(`chart.tab.${m}` as const)}
+              </Text>
+            </Pressable>
+          );
+        })}
       </View>
 
       {/* Legend */}
@@ -86,8 +208,8 @@ export function LineChart({ data }: LineChartProps) {
         </View>
       </View>
 
-      {/* Chart */}
-      <View style={styles.chartWrap}>
+      {/* Chart with touch */}
+      <View style={styles.chartWrap} onLayout={onLayout} {...panResponder.panHandlers}>
         <Svg width="100%" height={CHART_H} viewBox={`0 0 ${CHART_W} ${CHART_H}`}>
           <Defs>
             <RadialGradient id="glowIn" cx="50%" cy="50%" r="50%">
@@ -102,15 +224,7 @@ export function LineChart({ data }: LineChartProps) {
 
           {/* Grid lines */}
           {gridLines.map((y, i) => (
-            <Line
-              key={i}
-              x1={PAD_L}
-              y1={y}
-              x2={CHART_W - PAD_R}
-              y2={y}
-              stroke="rgba(255,255,255,0.04)"
-              strokeWidth={1}
-            />
+            <Line key={i} x1={PAD_L} y1={y} x2={CHART_W - PAD_R} y2={y} stroke={gridStroke} strokeWidth={1} />
           ))}
 
           {/* Baseline */}
@@ -119,7 +233,7 @@ export function LineChart({ data }: LineChartProps) {
             y1={PAD_T + INNER_H}
             x2={CHART_W - PAD_R}
             y2={PAD_T + INNER_H}
-            stroke="rgba(255,255,255,0.08)"
+            stroke={baselineStroke}
             strokeWidth={1}
           />
 
@@ -143,102 +257,104 @@ export function LineChart({ data }: LineChartProps) {
             </>
           ) : (
             <>
-              {/* ── Ingang (green) — glow + line ── */}
               {inPath ? (
                 <>
-                  {/* Outer glow */}
-                  <Path
-                    d={inPath}
-                    stroke={COLOR_IN}
-                    strokeWidth={8}
-                    fill="none"
-                    opacity={0.12}
-                    strokeLinejoin="round"
-                    strokeLinecap="round"
-                  />
-                  {/* Inner glow */}
-                  <Path
-                    d={inPath}
-                    stroke={COLOR_IN}
-                    strokeWidth={4}
-                    fill="none"
-                    opacity={0.25}
-                    strokeLinejoin="round"
-                    strokeLinecap="round"
-                  />
-                  {/* Main line */}
-                  <Path
-                    d={inPath}
-                    stroke={COLOR_IN}
-                    strokeWidth={2}
-                    fill="none"
-                    strokeLinejoin="round"
-                    strokeLinecap="round"
-                  />
+                  <Path d={inPath} stroke={COLOR_IN} strokeWidth={8} fill="none" opacity={0.12} strokeLinejoin="round" strokeLinecap="round" />
+                  <Path d={inPath} stroke={COLOR_IN} strokeWidth={4} fill="none" opacity={0.25} strokeLinejoin="round" strokeLinecap="round" />
+                  <Path d={inPath} stroke={COLOR_IN} strokeWidth={2} fill="none" strokeLinejoin="round" strokeLinecap="round" />
                 </>
               ) : null}
-
-              {/* ── Uitgang (blue) — glow + line ── */}
               {outPath ? (
                 <>
-                  {/* Outer glow */}
-                  <Path
-                    d={outPath}
-                    stroke={COLOR_OUT}
-                    strokeWidth={8}
-                    fill="none"
-                    opacity={0.12}
-                    strokeLinejoin="round"
-                    strokeLinecap="round"
-                  />
-                  {/* Inner glow */}
-                  <Path
-                    d={outPath}
-                    stroke={COLOR_OUT}
-                    strokeWidth={4}
-                    fill="none"
-                    opacity={0.25}
-                    strokeLinejoin="round"
-                    strokeLinecap="round"
-                  />
-                  {/* Main line */}
-                  <Path
-                    d={outPath}
-                    stroke={COLOR_OUT}
-                    strokeWidth={2}
-                    fill="none"
-                    strokeLinejoin="round"
-                    strokeLinecap="round"
-                  />
+                  <Path d={outPath} stroke={COLOR_OUT} strokeWidth={8} fill="none" opacity={0.12} strokeLinejoin="round" strokeLinecap="round" />
+                  <Path d={outPath} stroke={COLOR_OUT} strokeWidth={4} fill="none" opacity={0.25} strokeLinejoin="round" strokeLinecap="round" />
+                  <Path d={outPath} stroke={COLOR_OUT} strokeWidth={2} fill="none" strokeLinejoin="round" strokeLinecap="round" />
                 </>
               ) : null}
 
-              {/* Ingang data points */}
-              {inPoints.map((p, i) =>
-                data[i]?.inCount > 0 ? (
-                  <Circle key={`in-${i}`} cx={p.x} cy={p.y} r={3} fill={COLOR_IN} opacity={0.9} />
-                ) : null
-              )}
+              {/* Data points (visible markers only on smaller series for readability) */}
+              {points.length <= 24 &&
+                inPts.map((p, i) =>
+                  points[i].inCount > 0 ? (
+                    <Circle key={`in-${i}`} cx={p.x} cy={p.y} r={2.5} fill={COLOR_IN} opacity={0.9} />
+                  ) : null,
+                )}
             </>
           )}
 
           {/* X axis labels */}
-          {X_LABEL_HOURS.map((h, i) => {
-            const x = PAD_L + (h / 23) * INNER_W;
+          {points.map((p, i) => {
+            if (!p.label) return null;
+            const x = xFor(i, points.length);
             return (
               <SvgText
-                key={h}
+                key={`xl-${i}`}
                 x={x}
-                y={CHART_H - 2}
-                fontSize={8}
-                fill="rgba(255,255,255,0.3)"
-                textAnchor={i === 0 ? "start" : i === X_LABELS.length - 1 ? "end" : "middle"}
+                y={CHART_H - 4}
+                fontSize={9}
+                fill={labelFill}
+                textAnchor={i === 0 ? "start" : i === points.length - 1 ? "end" : "middle"}
               >
-                {X_LABELS[i]}
+                {p.label}
               </SvgText>
             );
           })}
+
+          {/* Scrubber */}
+          {scrubIndex !== null && scrubPoint && (
+            <>
+              <Line
+                x1={scrubX}
+                y1={PAD_T}
+                x2={scrubX}
+                y2={PAD_T + INNER_H}
+                stroke={colors.foreground}
+                strokeWidth={1}
+                strokeDasharray="3,3"
+                opacity={0.5}
+              />
+              <Circle cx={scrubX} cy={yFor(scrubPoint.inCount, maxVal)} r={4} fill={COLOR_IN} stroke={colors.surface1} strokeWidth={1.5} />
+              <Circle cx={scrubX} cy={yFor(scrubPoint.outCount, maxVal)} r={4} fill={COLOR_OUT} stroke={colors.surface1} strokeWidth={1.5} />
+            </>
+          )}
         </Svg>
+
+        {/* Tooltip overlay (HTML, follows scrub position) */}
+        {scrubIndex !== null && scrubPoint && (
+          <View
+            pointerEvents="none"
+            style={[
+              styles.tooltip,
+              {
+                backgroundColor: colors.surface2,
+                borderColor: colors.border,
+                left: Math.max(
+                  4,
+                  Math.min(
+                    chartWidth - 120,
+                    (scrubX / CHART_W) * chartWidth - 60,
+                  ),
+                ),
+              },
+            ]}
+          >
+            <Text style={[styles.tooltipLabel, { color: colors.textTertiary }]} numberOfLines={1}>
+              {scrubPoint.fullLabel}
+            </Text>
+            <View style={styles.tooltipRow}>
+              <View style={[styles.tooltipDot, { backgroundColor: COLOR_IN }]} />
+              <Text style={[styles.tooltipText, { color: colors.foreground }]}>
+                {t("chart.in")}: {scrubPoint.inCount}
+              </Text>
+            </View>
+            <View style={styles.tooltipRow}>
+              <View style={[styles.tooltipDot, { backgroundColor: COLOR_OUT }]} />
+              <Text style={[styles.tooltipText, { color: colors.foreground }]}>
+                {t("chart.out")}: {scrubPoint.outCount}
+              </Text>
+            </View>
+          </View>
+        )}
       </View>
     </View>
   );
@@ -246,14 +362,41 @@ export function LineChart({ data }: LineChartProps) {
 
 const styles = StyleSheet.create({
   card: { borderRadius: 14, padding: 14, gap: 8 },
-  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  title: { fontSize: 9, letterSpacing: 1.2, fontWeight: "500" },
+  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 },
+  title: { fontSize: 9, letterSpacing: 1.2, fontWeight: "500", flex: 1 },
   livePill: { flexDirection: "row", alignItems: "center", gap: 4 },
   liveDot: { width: 6, height: 6, borderRadius: 3 },
   livePillText: { fontSize: 9, fontWeight: "600" },
+  tabs: {
+    flexDirection: "row",
+    borderRadius: 10,
+    padding: 3,
+    borderWidth: 1,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 6,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  tabText: { fontSize: 11, fontWeight: "500" },
   legend: { flexDirection: "row", gap: 14 },
   legendItem: { flexDirection: "row", alignItems: "center", gap: 6 },
   legendSwatch: { width: 18, height: 3, borderRadius: 2 },
   legendText: { fontSize: 10 },
-  chartWrap: { height: CHART_H },
+  chartWrap: { height: CHART_H, position: "relative" },
+  tooltip: {
+    position: "absolute",
+    top: 4,
+    width: 120,
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    gap: 2,
+  },
+  tooltipLabel: { fontSize: 9, fontWeight: "600", letterSpacing: 0.5 },
+  tooltipRow: { flexDirection: "row", alignItems: "center", gap: 5 },
+  tooltipDot: { width: 7, height: 7, borderRadius: 3.5 },
+  tooltipText: { fontSize: 11, fontWeight: "600" },
 });

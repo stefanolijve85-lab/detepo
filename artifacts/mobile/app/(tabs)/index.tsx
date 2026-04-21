@@ -157,7 +157,7 @@ export default function HomeScreen() {
       </View>
 
       {/* ── Hourly line chart ── */}
-      <LineChart data={data.hourlyData} />
+      <LineChart data={data.hourlyData} dailyHistory={data.dailyHistory} />
 
       {/* Picker modal */}
       {pickerMode && (

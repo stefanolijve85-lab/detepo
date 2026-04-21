@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { DETEPO_API_BASE, DetepoUser } from "@/contexts/AuthContext";
 
 export interface CounterDevice {
@@ -33,6 +33,7 @@ export interface DashboardData {
   onlineCount: number;
   offlineCount: number;
   hourlyData: { hour: string; inCount: number; outCount: number }[];
+  dailyHistory: { date: string; inCount: number; outCount: number }[];
   lastUpdated: Date;
   heartbeatOnline: boolean;
 }
@@ -62,6 +63,7 @@ const baseData: DashboardData = {
   onlineCount: 0,
   offlineCount: 0,
   hourlyData: [],
+  dailyHistory: [],
   lastUpdated: new Date(),
   heartbeatOnline: false,
 };
@@ -122,6 +124,7 @@ function mapApiData(
   yesterdayOverview: ApiOverview | null = null,
   lastWeekOverview: ApiOverview | null = null,
   lastMonthOverview: ApiOverview | null = null,
+  dailyHistory: { date: string; inCount: number; outCount: number }[] = [],
 ): DashboardData {
   const hourlyData = (overview.hourly ?? []).map((item) => ({
     hour: String(item.hour).padStart(2, "0"),
@@ -183,6 +186,7 @@ function mapApiData(
     onlineCount,
     offlineCount,
     hourlyData,
+    dailyHistory,
     lastUpdated: new Date(),
     heartbeatOnline: true,
   };
@@ -259,7 +263,8 @@ async function apiGet<T>(
 
 async function loadDashboard(
   user: DetepoUser | null,
-  token: string | null
+  token: string | null,
+  prevDailyHistory: { date: string; inCount: number; outCount: number }[] = [],
 ): Promise<DashboardData> {
   const orgParams = getOrgParams(user);
 
@@ -299,7 +304,39 @@ async function loadDashboard(
     yesterdayOverview as ApiOverview | null,
     lastWeekOverview as ApiOverview | null,
     lastMonthOverview as ApiOverview | null,
+    prevDailyHistory,
   );
+}
+
+async function loadDailyHistory(
+  user: DetepoUser | null,
+  token: string | null,
+  days: number = 30,
+): Promise<{ date: string; inCount: number; outCount: number }[]> {
+  const orgParams = getOrgParams(user);
+  const ymd = (d: Date) => {
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  };
+  const today = new Date();
+  const dates: string[] = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    dates.push(ymd(d));
+  }
+  const results = await Promise.all(
+    dates.map((date) =>
+      apiGet<ApiOverview>("/overview", token, { ...orgParams, date })
+        .then((res) => ({
+          date,
+          inCount: toNum(res.totalIn),
+          outCount: toNum(res.totalOut),
+        }))
+        .catch(() => ({ date, inCount: 0, outCount: 0 })),
+    ),
+  );
+  return results;
 }
 
 export function useDashboardData(
@@ -312,11 +349,13 @@ export function useDashboardData(
   const [loading, setLoading] = useState(false);
   const [connectionError, setConnectionError] = useState(false);
 
+  const dailyHistoryRef = useRef<{ date: string; inCount: number; outCount: number }[]>([]);
+
   const refresh = useCallback(async () => {
     if (!enabled) return;
     setLoading(true);
     try {
-      const next = await loadDashboard(user, token);
+      const next = await loadDashboard(user, token, dailyHistoryRef.current);
       setData(next);
       setAlerts(buildAlerts(next));
       setConnectionError(false);
@@ -348,12 +387,34 @@ export function useDashboardData(
       setData(baseData);
       setAlerts([]);
       setConnectionError(false);
+      dailyHistoryRef.current = [];
       return;
     }
     void refresh();
     const interval = setInterval(refresh, 5000);
     return () => clearInterval(interval);
   }, [enabled, refresh]);
+
+  useEffect(() => {
+    if (!enabled) return;
+    let cancelled = false;
+    const fetchHistory = async () => {
+      try {
+        const next = await loadDailyHistory(user, token, 30);
+        if (cancelled) return;
+        dailyHistoryRef.current = next;
+        setData((prev) => ({ ...prev, dailyHistory: next }));
+      } catch {
+        // ignore — will retry on next interval
+      }
+    };
+    void fetchHistory();
+    const interval = setInterval(fetchHistory, 5 * 60 * 1000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [enabled, token, user?.id, user?.org?.id, user?.role]);
 
   const markAlertRead = useCallback((id: string) => {
     setAlerts((prev) => prev.map((a) => (a.id === id ? { ...a, read: true } : a)));
