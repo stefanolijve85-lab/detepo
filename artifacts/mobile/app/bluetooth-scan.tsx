@@ -404,7 +404,15 @@ function ProgressStep({ step, message, logLines }: { step: string; message: stri
 }
 
 // ─── Done step ───────────────────────────────────────────────────────────────
-function DoneStep({ deviceName, onClose }: { deviceName: string; onClose: () => void }) {
+function DoneStep({
+  deviceName,
+  pairedSerial,
+  onClose,
+}: {
+  deviceName: string;
+  pairedSerial: string;
+  onClose: () => void;
+}) {
   const colors = useColors();
   const { t } = useLanguage();
   return (
@@ -416,12 +424,29 @@ function DoneStep({ deviceName, onClose }: { deviceName: string; onClose: () => 
       <Text style={[styles.progressSub, { color: colors.textSecondary }]}>
         {t("ble.done.body", { name: deviceName })}
       </Text>
+
+      {/* Alignment-check CTA */}
+      <Pressable
+        onPress={() => {
+          router.replace({
+            pathname: "/alignment-check",
+            params: { uuid: pairedSerial, name: deviceName },
+          });
+        }}
+        style={[styles.primaryBtn, { backgroundColor: colors.cyan, marginTop: 12 }]}
+      >
+        <Feather name="target" size={16} color={colors.background} />
+        <Text style={[styles.primaryBtnText, { color: colors.background }]}>
+          {t("ble.done.checkAlignment")}
+        </Text>
+      </Pressable>
+
       <Pressable
         onPress={onClose}
-        style={[styles.primaryBtn, { backgroundColor: colors.green, marginTop: 12 }]}
+        style={[styles.primaryBtn, { backgroundColor: colors.surface1, marginTop: 8 }]}
       >
-        <Feather name="check-circle" size={16} color={colors.background} />
-        <Text style={[styles.primaryBtnText, { color: colors.background }]}>{t("common.close")}</Text>
+        <Feather name="check-circle" size={16} color={colors.foreground} />
+        <Text style={[styles.primaryBtnText, { color: colors.foreground }]}>{t("common.close")}</Text>
       </Pressable>
     </View>
   );
@@ -454,6 +479,7 @@ export default function BluetoothScanScreen() {
   const insets = useSafeAreaInsets();
   const { bleState, devices, step, statusMessage, errorMessage, logLines, pairedDeviceName, startScan, connectAndProvision, reset } = useBLE();
   const [selectedDevice, setSelectedDevice] = useState<BLEDevice | null>(null);
+  const [pairedSerial, setPairedSerial] = useState("");
 
   const isWeb = Platform.OS === "web";
 
@@ -470,6 +496,7 @@ export default function BluetoothScanScreen() {
 
   function handleProvision(ssid: string, password: string, label: string, serial: string) {
     if (!selectedDevice) return;
+    setPairedSerial(serial);
     connectAndProvision(selectedDevice, ssid, password, label, serial, token);
   }
 
@@ -570,7 +597,7 @@ export default function BluetoothScanScreen() {
           <ProgressStep step={step} message={statusMessage} logLines={logLines} />
         )}
         {showDone && (
-          <DoneStep deviceName={pairedDeviceName} onClose={handleClose} />
+          <DoneStep deviceName={pairedDeviceName} pairedSerial={pairedSerial} onClose={handleClose} />
         )}
         {showError && (
           <ErrorStep message={errorMessage} onRetry={handleRetry} />

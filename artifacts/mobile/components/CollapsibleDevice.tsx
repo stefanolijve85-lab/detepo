@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { View, Text, StyleSheet, Pressable } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { router } from "expo-router";
 import { useColors } from "@/hooks/useColors";
 import { useLanguage } from "@/contexts/LanguageContext";
 import type { CounterDevice } from "@/hooks/useDashboardData";
 import { formatLastSeen } from "@/hooks/useDashboardData";
+import { SignalBars, rssiQuality } from "@/components/SignalBars";
 
 interface Props {
   device: CounterDevice;
@@ -14,6 +16,16 @@ export function CollapsibleDevice({ device }: Props) {
   const colors = useColors();
   const { t } = useLanguage();
   const [open, setOpen] = useState(false);
+
+  const quality = rssiQuality(device.wifiRssi);
+  const qualityColor =
+    quality === "excellent" || quality === "good"
+      ? colors.green
+      : quality === "fair"
+      ? colors.amber
+      : quality === "poor"
+      ? colors.red
+      : colors.textTertiary;
 
   return (
     <View style={[styles.card, { backgroundColor: colors.surface1 }]}>
@@ -38,6 +50,11 @@ export function CollapsibleDevice({ device }: Props) {
             {device.uuid} · {device.connection}
           </Text>
         </View>
+        {device.wifiRssi != null && (
+          <View style={styles.signalCol}>
+            <SignalBars rssi={device.wifiRssi} size="sm" />
+          </View>
+        )}
         <View
           style={[
             styles.statusPill,
@@ -94,6 +111,36 @@ export function CollapsibleDevice({ device }: Props) {
             />
           </View>
 
+          {/* WiFi signal row */}
+          <View style={[styles.signalRow, { backgroundColor: colors.surface2 }]}>
+            <View style={styles.signalLeft}>
+              <SignalBars rssi={device.wifiRssi} size="md" />
+              <View style={{ marginLeft: 10, flex: 1 }}>
+                <Text style={[styles.signalLabel, { color: colors.textTertiary }]}>
+                  {t("device.wifiSignal")}
+                </Text>
+                <Text style={[styles.signalValue, { color: qualityColor }]}>
+                  {device.wifiRssi != null
+                    ? `${device.wifiRssi} dBm · ${t(`signal.quality.${quality}` as const)}`
+                    : t("signal.quality.none")}
+                </Text>
+              </View>
+            </View>
+            <Pressable
+              onPress={() =>
+                router.push({
+                  pathname: "/alignment-check",
+                  params: { uuid: device.uuid, name: device.name },
+                })
+              }
+              style={[styles.alignBtn, { borderColor: colors.border }]}
+              hitSlop={6}
+            >
+              <Feather name="target" size={12} color={colors.cyan} />
+              <Text style={[styles.alignBtnText, { color: colors.cyan }]}>{t("device.checkAlignment")}</Text>
+            </Pressable>
+          </View>
+
           <View style={styles.meta}>
             <Text style={[styles.metaText, { color: colors.textTertiary }]}>
               {t("device.firmware")}: {device.firmware}
@@ -114,6 +161,7 @@ const styles = StyleSheet.create({
   iconBox: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   deviceName: { fontSize: 13, fontWeight: "700" },
   deviceSub: { fontSize: 10, marginTop: 1 },
+  signalCol: { marginRight: 6 },
   statusPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
   statusText: { fontSize: 10, fontWeight: "600" },
   expanded: { gap: 10 },
@@ -124,6 +172,27 @@ const styles = StyleSheet.create({
   dividerV: { width: 1, height: 36 },
   battBg: { height: 5, borderRadius: 3, overflow: "hidden" },
   battFill: { height: "100%", borderRadius: 3 },
+  signalRow: {
+    borderRadius: 10,
+    padding: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  signalLeft: { flexDirection: "row", alignItems: "center", flex: 1 },
+  signalLabel: { fontSize: 9, letterSpacing: 0.8, fontWeight: "500" },
+  signalValue: { fontSize: 12, fontWeight: "700", marginTop: 2 },
+  alignBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  alignBtnText: { fontSize: 10, fontWeight: "700" },
   meta: { flexDirection: "row", justifyContent: "space-between" },
   metaText: { fontSize: 10 },
 });

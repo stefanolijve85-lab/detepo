@@ -14,6 +14,7 @@ export interface CounterDevice {
   connection: string;
   lastHeartbeat: string;
   status: string;
+  wifiRssi: number | null;
 }
 
 export interface DashboardData {
@@ -116,6 +117,9 @@ interface ApiCounter {
   today_out?: string | number;
   location_name?: string;
   connection_type?: string;
+  wifi_rssi?: string | number | null;
+  rssi?: string | number | null;
+  signal_strength?: string | number | null;
 }
 
 function mapApiData(
@@ -145,6 +149,8 @@ function mapApiData(
       typeof c.is_online === "boolean"
         ? c.is_online
         : String(c.status ?? "").toLowerCase() === "online";
+    const rawRssi = c.wifi_rssi ?? c.rssi ?? c.signal_strength;
+    const rssiNum = rawRssi == null ? null : Number(rawRssi);
     return {
       id: c.uuid ?? String(c.id ?? ""),
       uuid: c.uuid ?? String(c.id ?? ""),
@@ -158,6 +164,7 @@ function mapApiData(
       connection: c.connection_type ? c.connection_type.toUpperCase() : "BLE",
       lastHeartbeat: c.last_heartbeat ?? "",
       status: c.status ?? (isOnline ? "online" : "offline"),
+      wifiRssi: rssiNum != null && Number.isFinite(rssiNum) ? rssiNum : null,
     };
   });
 
@@ -325,17 +332,31 @@ async function loadDailyHistory(
     d.setDate(today.getDate() - i);
     dates.push(ymd(d));
   }
-  const results = await Promise.all(
-    dates.map((date) =>
-      apiGet<ApiOverview>("/overview", token, { ...orgParams, date })
-        .then((res) => ({
-          date,
-          inCount: toNum(res.totalIn),
-          outCount: toNum(res.totalOut),
-        }))
-        .catch(() => ({ date, inCount: 0, outCount: 0 })),
-    ),
-  );
+  // Fetch each day. The Detepo /overview endpoint accepts both `date=` and a
+  // `from=&to=` range; some deployments only honour the latter, so try `date`
+  // first and fall back to a same-day from/to query.
+  const fetchDay = async (date: string) => {
+    try {
+      const res = await apiGet<ApiOverview>("/overview", token, { ...orgParams, date });
+      const inC = toNum(res.totalIn);
+      const outC = toNum(res.totalOut);
+      if (inC > 0 || outC > 0) return { date, inCount: inC, outCount: outC };
+      // Fall through to range query when single-date returns empty
+      throw new Error("empty");
+    } catch {
+      try {
+        const res = await apiGet<ApiOverview>("/overview", token, {
+          ...orgParams,
+          from: date,
+          to: date,
+        });
+        return { date, inCount: toNum(res.totalIn), outCount: toNum(res.totalOut) };
+      } catch {
+        return { date, inCount: 0, outCount: 0 };
+      }
+    }
+  };
+  const results = await Promise.all(dates.map(fetchDay));
   return results;
 }
 

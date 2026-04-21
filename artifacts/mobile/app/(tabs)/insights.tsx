@@ -142,7 +142,7 @@ export default function InsightsScreen() {
       </View>
 
       {/* Line chart */}
-      {data.hourlyData.length > 0 && <LineChart data={data.hourlyData} />}
+      <LineChart data={data.hourlyData} dailyHistory={data.dailyHistory} />
 
       {/* Insights */}
       <Text style={[styles.sectionLabel, { color: colors.textTertiary }]}>{t("insights.aiInsights")}</Text>
