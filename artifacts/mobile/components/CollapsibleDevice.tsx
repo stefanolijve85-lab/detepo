@@ -6,7 +6,8 @@ import { useColors } from "@/hooks/useColors";
 import { useLanguage } from "@/contexts/LanguageContext";
 import type { CounterDevice } from "@/hooks/useDashboardData";
 import { formatLastSeen } from "@/hooks/useDashboardData";
-import { SignalBars, rssiQuality } from "@/components/SignalBars";
+import { rssiQuality } from "@/components/SignalBars";
+import { WifiIcon } from "@/components/WifiIcon";
 
 interface Props {
   device: CounterDevice;
@@ -51,8 +52,8 @@ export function CollapsibleDevice({ device }: Props) {
           </Text>
         </View>
         {device.wifiRssi != null && (
-          <View style={styles.signalCol}>
-            <SignalBars rssi={device.wifiRssi} size="sm" />
+          <View style={styles.headSignal}>
+            <WifiIcon rssi={device.wifiRssi} size={18} />
           </View>
         )}
         <View
@@ -77,6 +78,7 @@ export function CollapsibleDevice({ device }: Props) {
 
       {open && (
         <View style={styles.expanded}>
+          {/* Top stats: in / out / battery */}
           <View style={styles.statsGrid}>
             <View style={styles.statCell}>
               <Text style={[styles.statVal, { color: colors.foreground }]}>{device.countIn}</Text>
@@ -94,51 +96,43 @@ export function CollapsibleDevice({ device }: Props) {
             </View>
           </View>
 
-          <View style={[styles.battBg, { backgroundColor: colors.surface2 }]}>
-            <View
-              style={[
-                styles.battFill,
-                {
-                  width: `${Math.min(100, device.battery)}%`,
-                  backgroundColor:
-                    device.battery > 40
-                      ? colors.green
-                      : device.battery > 20
-                      ? colors.amber
-                      : colors.red,
-                },
-              ]}
-            />
-          </View>
-
-          {/* WiFi signal row */}
-          <View style={[styles.signalRow, { backgroundColor: colors.surface2 }]}>
-            <View style={styles.signalLeft}>
-              <SignalBars rssi={device.wifiRssi} size="md" />
-              <View style={{ marginLeft: 10, flex: 1 }}>
-                <Text style={[styles.signalLabel, { color: colors.textTertiary }]}>
-                  {t("device.wifiSignal")}
-                </Text>
-                <Text style={[styles.signalValue, { color: qualityColor }]}>
-                  {device.wifiRssi != null
-                    ? `${device.wifiRssi} dBm · ${t(`signal.quality.${quality}` as const)}`
-                    : t("signal.quality.none")}
-                </Text>
-              </View>
+          {/* Extras row aligned with the three columns above:
+              col1 = WiFi signal | col2 = (spacer) | col3 = Alignment button */}
+          <View style={styles.extrasGrid}>
+            {/* WiFi column */}
+            <View style={styles.extrasCell}>
+              <WifiIcon rssi={device.wifiRssi} size={26} />
+              <Text style={[styles.extraLabel, { color: colors.textTertiary }]}>
+                {t("device.wifiSignal")}
+              </Text>
+              <Text style={[styles.extraValue, { color: qualityColor }]} numberOfLines={1}>
+                {device.wifiRssi != null
+                  ? `${t(`signal.quality.${quality}` as const)} · ${device.wifiRssi} dBm`
+                  : t("signal.quality.none")}
+              </Text>
             </View>
-            <Pressable
-              onPress={() =>
-                router.push({
-                  pathname: "/alignment-check",
-                  params: { uuid: device.uuid, name: device.name },
-                })
-              }
-              style={[styles.alignBtn, { borderColor: colors.border }]}
-              hitSlop={6}
-            >
-              <Feather name="target" size={12} color={colors.cyan} />
-              <Text style={[styles.alignBtnText, { color: colors.cyan }]}>{t("device.checkAlignment")}</Text>
-            </Pressable>
+
+            {/* Spacer (matches divider/middle column) */}
+            <View style={styles.extrasSpacer} />
+
+            {/* Alignment column */}
+            <View style={styles.extrasCell}>
+              <Pressable
+                onPress={() =>
+                  router.push({
+                    pathname: "/alignment-check",
+                    params: { uuid: device.uuid, name: device.name },
+                  })
+                }
+                style={[styles.alignBtn, { borderColor: colors.cyan, backgroundColor: "rgba(0,200,224,0.08)" }]}
+                hitSlop={6}
+              >
+                <Feather name="target" size={13} color={colors.cyan} />
+                <Text style={[styles.alignBtnText, { color: colors.cyan }]} numberOfLines={1}>
+                  {t("device.checkAlignment")}
+                </Text>
+              </Pressable>
+            </View>
           </View>
 
           <View style={styles.meta}>
@@ -146,7 +140,7 @@ export function CollapsibleDevice({ device }: Props) {
               {t("device.firmware")}: {device.firmware}
             </Text>
             <Text style={[styles.metaText, { color: colors.textTertiary }]}>
-              {t("device.heartbeat")}: {formatLastSeen(device.lastHeartbeat)}
+              {t("device.heartbeat")}: {formatLastSeen(device.lastHeartbeat, t)}
             </Text>
           </View>
         </View>
@@ -156,43 +150,35 @@ export function CollapsibleDevice({ device }: Props) {
 }
 
 const styles = StyleSheet.create({
-  card: { borderRadius: 14, padding: 14, gap: 10 },
+  card: { borderRadius: 14, padding: 14, gap: 12 },
   cardHead: { flexDirection: "row", alignItems: "center", gap: 10 },
   iconBox: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   deviceName: { fontSize: 13, fontWeight: "700" },
   deviceSub: { fontSize: 10, marginTop: 1 },
-  signalCol: { marginRight: 6 },
+  headSignal: { marginRight: 6 },
   statusPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
   statusText: { fontSize: 10, fontWeight: "600" },
-  expanded: { gap: 10 },
+  expanded: { gap: 12 },
   statsGrid: { flexDirection: "row", alignItems: "center" },
   statCell: { flex: 1, alignItems: "center" },
   statVal: { fontSize: 22, fontWeight: "700", letterSpacing: -0.5 },
   statLabel: { fontSize: 8, letterSpacing: 0.8, marginTop: 2 },
   dividerV: { width: 1, height: 36 },
-  battBg: { height: 5, borderRadius: 3, overflow: "hidden" },
-  battFill: { height: "100%", borderRadius: 3 },
-  signalRow: {
-    borderRadius: 10,
-    padding: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 8,
-  },
-  signalLeft: { flexDirection: "row", alignItems: "center", flex: 1 },
-  signalLabel: { fontSize: 9, letterSpacing: 0.8, fontWeight: "500" },
-  signalValue: { fontSize: 12, fontWeight: "700", marginTop: 2 },
+  extrasGrid: { flexDirection: "row", alignItems: "center" },
+  extrasCell: { flex: 1, alignItems: "center", gap: 4, paddingHorizontal: 4 },
+  extrasSpacer: { width: 1 },
+  extraLabel: { fontSize: 8, letterSpacing: 0.8, marginTop: 2 },
+  extraValue: { fontSize: 11, fontWeight: "700", textAlign: "center" },
   alignBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderRadius: 8,
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 10,
     borderWidth: 1,
   },
-  alignBtnText: { fontSize: 10, fontWeight: "700" },
-  meta: { flexDirection: "row", justifyContent: "space-between" },
+  alignBtnText: { fontSize: 11, fontWeight: "700" },
+  meta: { flexDirection: "row", justifyContent: "space-between", marginTop: 2 },
   metaText: { fontSize: 10 },
 });

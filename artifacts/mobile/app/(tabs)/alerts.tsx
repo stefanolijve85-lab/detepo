@@ -8,6 +8,8 @@ import {
   Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { router } from "expo-router";
+import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import { useDashboard } from "@/contexts/DashboardContext";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -51,6 +53,14 @@ export default function AlertsScreen() {
       <View style={styles.header}>
         <Text style={[styles.title, { color: colors.foreground }]}>{t("alerts.title")}</Text>
         <View style={styles.headerActions}>
+          <Pressable
+            onPress={() => router.push("/notification-settings")}
+            style={[styles.gearBtn, { backgroundColor: colors.surface1 }]}
+            hitSlop={6}
+            accessibilityLabel={t("alerts.openSettings")}
+          >
+            <Feather name="settings" size={16} color={colors.textSecondary} />
+          </Pressable>
           <LanguagePicker />
           <ThemeToggle />
         </View>
@@ -110,6 +120,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   title: { fontSize: 20, fontWeight: "700", letterSpacing: -0.4 },
   headerActions: { flexDirection: "row", alignItems: "center", gap: 6 },
+  gearBtn: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
   filterRow: { flexGrow: 0 },
   filterContent: { gap: 6 },
   chip: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, borderWidth: 1 },

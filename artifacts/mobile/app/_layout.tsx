@@ -17,6 +17,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { DashboardProvider } from "@/contexts/DashboardContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
+import { NotificationsProvider } from "@/contexts/NotificationsContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 
 SplashScreen.preventAutoHideAsync();
@@ -29,6 +30,8 @@ function RootLayoutNav() {
       <Stack.Screen name="login" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="bluetooth-scan" options={{ headerShown: false, presentation: "modal" }} />
+      <Stack.Screen name="alignment-check" options={{ headerShown: false, presentation: "modal" }} />
+      <Stack.Screen name="notification-settings" options={{ headerShown: false, presentation: "modal" }} />
     </Stack>
   );
 }
@@ -56,13 +59,15 @@ export default function RootLayout() {
           <ThemeProvider>
             <LanguageProvider>
             <AuthProvider>
-              <DashboardProvider>
-                <GestureHandlerRootView style={{ flex: 1 }}>
-                  <KeyboardProvider>
-                    <RootLayoutNav />
-                  </KeyboardProvider>
-                </GestureHandlerRootView>
-              </DashboardProvider>
+              <NotificationsProvider>
+                <DashboardProvider>
+                  <GestureHandlerRootView style={{ flex: 1 }}>
+                    <KeyboardProvider>
+                      <RootLayoutNav />
+                    </KeyboardProvider>
+                  </GestureHandlerRootView>
+                </DashboardProvider>
+              </NotificationsProvider>
             </AuthProvider>
             </LanguageProvider>
           </ThemeProvider>

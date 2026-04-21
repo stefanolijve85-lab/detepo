@@ -1,5 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { DETEPO_API_BASE, DetepoUser } from "@/contexts/AuthContext";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { useNotifications, type NotificationPrefs } from "@/contexts/NotificationsContext";
+
+type TFn = (key: string, vars?: Record<string, string | number>) => string;
 
 export interface CounterDevice {
   id: string;
@@ -80,16 +84,25 @@ function deriveStatus(occupancy: number): DashboardData["status"] {
   return "calm";
 }
 
-function formatLastSeen(isoString: string | null | undefined): string {
-  if (!isoString) return "onbekend";
+function defaultT(k: string, v?: Record<string, string | number>): string {
+  if (k === "relativeTime.unknown") return "onbekend";
+  if (k === "relativeTime.justNow") return "nu actief";
+  if (k === "relativeTime.minutesAgo") return `${v?.n} min geleden`;
+  if (k === "relativeTime.hoursAgo") return `${v?.n} uur geleden`;
+  if (k === "relativeTime.daysAgo") return `${v?.n} dag geleden`;
+  return k;
+}
+
+function formatLastSeen(isoString: string | null | undefined, t: TFn = defaultT): string {
+  if (!isoString) return t("relativeTime.unknown");
   const date = new Date(isoString);
-  if (isNaN(date.getTime())) return "onbekend";
+  if (isNaN(date.getTime())) return t("relativeTime.unknown");
   const now = Date.now();
   const diffMinutes = Math.round((now - date.getTime()) / 60000);
-  if (diffMinutes < 2) return "nu actief";
-  if (diffMinutes < 60) return `${diffMinutes} min geleden`;
-  if (diffMinutes < 1440) return `${Math.round(diffMinutes / 60)} uur geleden`;
-  return `${Math.round(diffMinutes / 1440)} dag geleden`;
+  if (diffMinutes < 2) return t("relativeTime.justNow");
+  if (diffMinutes < 60) return t("relativeTime.minutesAgo", { n: diffMinutes });
+  if (diffMinutes < 1440) return t("relativeTime.hoursAgo", { n: Math.round(diffMinutes / 60) });
+  return t("relativeTime.daysAgo", { n: Math.round(diffMinutes / 1440) });
 }
 
 interface ApiOverview {
@@ -199,35 +212,92 @@ function mapApiData(
   };
 }
 
-function buildAlerts(data: DashboardData): Alert[] {
+function buildAlerts(
+  data: DashboardData,
+  t: TFn = defaultT,
+  prefs?: NotificationPrefs,
+): Alert[] {
   const alerts: Alert[] = [];
+  const liveTime = t("alerts.time.live");
+  const nowTime = t("alerts.time.now");
 
   data.counters.filter((c) => !c.online).forEach((c, i) => {
     alerts.push({
       id: `offline-${c.uuid}-${i}`,
       type: "error",
-      message: `${c.name} is offline. Controleer verbinding en voeding.`,
-      time: c.lastHeartbeat ? formatLastSeen(c.lastHeartbeat) : "nu",
+      message: t("alerts.message.offline", { name: c.name }),
+      time: c.lastHeartbeat ? formatLastSeen(c.lastHeartbeat, t) : nowTime,
       read: false,
     });
   });
 
-  data.counters.filter((c) => c.battery > 0 && c.battery < 20).forEach((c, i) => {
+  // Battery alerts (gated by prefs)
+  if (!prefs || prefs.batteryEnabled) {
+    const threshold = prefs?.batteryThreshold ?? 20;
+    data.counters
+      .filter((c) => c.battery > 0 && c.battery <= threshold)
+      .forEach((c, i) => {
+        alerts.push({
+          id: `battery-${c.uuid}-${i}`,
+          type: "warning",
+          message: t("alerts.message.battery", { name: c.name, pct: c.battery }),
+          time: nowTime,
+          read: false,
+        });
+      });
+  }
+
+  // WiFi signal alerts (gated by prefs)
+  if (!prefs || prefs.wifiEnabled) {
+    const wifiTh = prefs?.wifiThreshold ?? -80;
+    data.counters
+      .filter((c) => c.online && c.wifiRssi != null && c.wifiRssi <= wifiTh)
+      .forEach((c, i) => {
+        alerts.push({
+          id: `wifi-${c.uuid}-${i}`,
+          type: "warning",
+          message: t("alerts.message.wifi", { name: c.name, dbm: c.wifiRssi as number }),
+          time: nowTime,
+          read: false,
+        });
+      });
+  }
+
+  // Alignment / very poor signal
+  if (!prefs || prefs.alignmentEnabled) {
+    data.counters
+      .filter((c) => c.online && c.wifiRssi != null && (c.wifiRssi as number) <= -85)
+      .forEach((c, i) => {
+        alerts.push({
+          id: `alignment-${c.uuid}-${i}`,
+          type: "warning",
+          message: t("alerts.message.alignment", { name: c.name }),
+          time: nowTime,
+          read: false,
+        });
+      });
+  }
+
+  // Visitor threshold alert
+  if (prefs?.visitorsEnabled && data.liveTelling >= prefs.visitorsThreshold) {
     alerts.push({
-      id: `battery-${c.uuid}-${i}`,
-      type: "warning",
-      message: `${c.name} batterij is laag (${c.battery}%).`,
-      time: "nu",
+      id: `visitors-${prefs.visitorsThreshold}`,
+      type: "info",
+      message: t("alerts.message.visitors", {
+        live: data.liveTelling,
+        threshold: prefs.visitorsThreshold,
+      }),
+      time: liveTime,
       read: false,
     });
-  });
+  }
 
   if (data.peakHourCount > 0) {
     alerts.push({
       id: "peak-hour",
       type: "info",
-      message: `Drukste uur vandaag: ${data.peakHour} met ${data.peakHourCount} bezoekers.`,
-      time: "live",
+      message: t("alerts.message.peakHour", { hour: data.peakHour, count: data.peakHourCount }),
+      time: liveTime,
       read: true,
     });
   }
@@ -235,8 +305,12 @@ function buildAlerts(data: DashboardData): Alert[] {
   alerts.push({
     id: "day-summary",
     type: "info",
-    message: `Live: ${data.liveTelling} aanwezig · ${data.dagTotaalIn} in · ${data.dagTotaalOut} uit vandaag.`,
-    time: "live",
+    message: t("alerts.message.daySummary", {
+      live: data.liveTelling,
+      in: data.dagTotaalIn,
+      out: data.dagTotaalOut,
+    }),
+    time: liveTime,
     read: true,
   });
 
@@ -332,9 +406,53 @@ async function loadDailyHistory(
     d.setDate(today.getDate() - i);
     dates.push(ymd(d));
   }
-  // Fetch each day. The Detepo /overview endpoint accepts both `date=` and a
-  // `from=&to=` range; some deployments only honour the latter, so try `date`
-  // first and fall back to a same-day from/to query.
+  // First, try a SINGLE bulk-range request and parse a daily breakdown if the
+  // server returns one (common shapes: `daily`, `series`, `data`, or `days`).
+  try {
+    const bulk = await apiGet<Record<string, unknown>>("/overview", token, {
+      ...orgParams,
+      from: dates[0],
+      to: dates[dates.length - 1],
+    });
+    type DayRow = {
+      date?: string;
+      day?: string;
+      label?: string;
+      in_count?: string | number;
+      out_count?: string | number;
+      total_in?: string | number;
+      total_out?: string | number;
+      totalIn?: string | number;
+      totalOut?: string | number;
+    };
+    const candidates: DayRow[] | undefined =
+      (bulk?.daily as DayRow[] | undefined) ??
+      (bulk?.series as DayRow[] | undefined) ??
+      (bulk?.days as DayRow[] | undefined) ??
+      (Array.isArray(bulk?.data) ? (bulk?.data as DayRow[]) : undefined);
+    if (Array.isArray(candidates) && candidates.length > 1) {
+      const byDate = new Map<string, { inCount: number; outCount: number }>();
+      candidates.forEach((row) => {
+        const key = String(row.date ?? row.day ?? row.label ?? "").slice(0, 10);
+        if (!key) return;
+        const inC = toNum(row.in_count ?? row.total_in ?? row.totalIn);
+        const outC = toNum(row.out_count ?? row.total_out ?? row.totalOut);
+        byDate.set(key, { inCount: inC, outCount: outC });
+      });
+      if (byDate.size > 1) {
+        return dates.map((d) => ({
+          date: d,
+          inCount: byDate.get(d)?.inCount ?? 0,
+          outCount: byDate.get(d)?.outCount ?? 0,
+        }));
+      }
+    }
+  } catch {
+    // ignore — fall back to per-day loop below
+  }
+
+  // Fall back: fetch each day individually. Try `date=` first, then `from=&to=`
+  // for deployments that only honour the range form.
   const fetchDay = async (date: string) => {
     try {
       const res = await apiGet<ApiOverview>("/overview", token, { ...orgParams, date });
@@ -365,6 +483,13 @@ export function useDashboardData(
   token: string | null,
   enabled: boolean
 ) {
+  const { t } = useLanguage();
+  const { prefs } = useNotifications();
+  const tRef = useRef(t);
+  const prefsRef = useRef(prefs);
+  tRef.current = t;
+  prefsRef.current = prefs;
+
   const [data, setData] = useState<DashboardData>(baseData);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(false);
@@ -378,7 +503,7 @@ export function useDashboardData(
     try {
       const next = await loadDashboard(user, token, dailyHistoryRef.current);
       setData(next);
-      setAlerts(buildAlerts(next));
+      setAlerts(buildAlerts(next, tRef.current, prefsRef.current));
       setConnectionError(false);
     } catch {
       setData((prev) => ({ ...prev, heartbeatOnline: false }));
@@ -390,9 +515,8 @@ export function useDashboardData(
               {
                 id: "conn-error",
                 type: "warning",
-                message:
-                  "Kan het dashboard niet bereiken. De app blijft het automatisch proberen.",
-                time: "nu",
+                message: tRef.current("alerts.message.connectionError"),
+                time: tRef.current("alerts.time.now"),
                 read: false,
               },
               ...prev.filter((a) => a.id !== "conn-error"),
@@ -436,6 +560,19 @@ export function useDashboardData(
       clearInterval(interval);
     };
   }, [enabled, token, user?.id, user?.org?.id, user?.role]);
+
+  // Re-derive alerts whenever language or notification prefs change so that
+  // toggles take effect immediately and message text follows the active locale.
+  useEffect(() => {
+    if (!enabled) return;
+    setAlerts((prev) => {
+      const fresh = buildAlerts(data, t, prefs);
+      // Preserve "read" state for matching ids
+      const readMap = new Map(prev.map((a) => [a.id, a.read] as const));
+      return fresh.map((a) => ({ ...a, read: readMap.get(a.id) ?? a.read }));
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [t, prefs, data]);
 
   const markAlertRead = useCallback((id: string) => {
     setAlerts((prev) => prev.map((a) => (a.id === id ? { ...a, read: true } : a)));
