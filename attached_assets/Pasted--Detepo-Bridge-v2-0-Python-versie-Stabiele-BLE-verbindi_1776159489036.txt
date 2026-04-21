@@ -1,0 +1,546 @@
+"""
+Detepo Bridge v2.0 — Python versie
+Stabiele BLE verbinding voor Windows via bleak + websockets
+
+Werkt op: Windows 10/11 met Bluetooth 4.0+
+Vereisten: pip install bleak websockets
+"""
+
+import asyncio
+import json
+import logging
+import sys
+import webbrowser
+from datetime import datetime
+
+# bleak = Windows Bluetooth library
+from bleak import BleakScanner, BleakClient, BleakError
+import websockets
+from websockets.server import serve
+from aiohttp import web
+
+# ─── Instellingen ───────────────────────────────────────────────
+VERSION = "2.0.0"
+PORT = 35222
+HOST = "127.0.0.1"
+
+# FP111 BLE service en karakteristieken UUIDs
+BLE_SERVICE  = "00002760-08c2-11e1-9073-0e8ac72e1001"
+BLE_WRITE    = "00002760-08c2-11e1-9073-0e8ac72e0001"
+BLE_NOTIFY   = "00002760-08c2-11e1-9073-0e8ac72e0002"
+
+# ─── Globale BLE staat ───────────────────────────────────────────
+ble_client   = None
+notify_queue = None      # BleakClient object — de actieve verbinding
+ble_device   = None      # gevonden BLE apparaat
+keepalive_task = None    # asyncio taak voor keepalive
+connected    = False     # is BLE momenteel verbonden?
+
+# ─── Verbonden dashboard clients ────────────────────────────────
+dashboard_clients = set()
+
+# ─── Tijdstempel voor logs ───────────────────────────────────────
+def ts():
+    return datetime.now().strftime("%H:%M:%S")
+
+def log(msg):
+    print(f"[{ts()}] {msg}")
+
+# ─── Stuur bericht naar alle verbonden dashboard vensters ────────
+async def broadcast(msg: dict):
+    if not dashboard_clients:
+        return
+    data = json.dumps(msg)
+    # Stuur naar alle clients tegelijk
+    tasks = [client.send(data) for client in list(dashboard_clients)]
+    await asyncio.gather(*tasks, return_exceptions=True)
+
+async def ble_log(msg: str):
+    """Stuur logbericht naar dashboard én print in console"""
+    log(f"BLE: {msg}")
+    await broadcast({"type": "log", "message": msg})
+
+# ─── Splits grote berichten in BLE chunks van 20 bytes ───────────
+async def ble_send(client: BleakClient, text: str):
+    """Stuur tekst via BLE Write karakteristiek — als één pakket"""
+    data = text.encode("utf-8")
+    # Stuur als één pakket — teller verwacht complete JSON in één keer
+    # BLE MTU is typisch 512 bytes, WiFi commando is max ~120 bytes
+    await client.write_gatt_char(BLE_WRITE, data, response=False)
+
+# ─── Keepalive loop ───────────────────────────────────────────────
+async def keepalive_loop():
+    """
+    Stuurt elke 30 seconden {"runLog":"on"} naar de teller
+    om de BLE verbinding actief te houden, net zoals de fabrikants app.
+    Als de verbinding weg is stopt de loop automatisch.
+    """
+    global connected, ble_client
+    while connected and ble_client and ble_client.is_connected:
+        await asyncio.sleep(30)
+        if not connected or not ble_client or not ble_client.is_connected:
+            break
+        try:
+            await ble_send(ble_client, '{"runLog":"on"}')
+            log("Keepalive verstuurd")
+        except Exception as e:
+            log(f"Keepalive mislukt: {e}")
+            await ble_disconnnect()
+            break
+
+# ─── BLE verbinding verbreken ─────────────────────────────────────
+async def ble_disconnnect():
+    global ble_client, ble_device, keepalive_task, connected
+    connected = False
+    if keepalive_task and not keepalive_task.done():
+        keepalive_task.cancel()
+        keepalive_task = None
+    if ble_client and ble_client.is_connected:
+        try:
+            await ble_client.disconnect()
+        except Exception:
+            pass
+    ble_client = None
+    ble_device = None
+    await ble_log("📵 Verbinding verbroken — klaar voor nieuwe verbinding")
+    await broadcast({"type": "status", "status": "idle"})
+
+# ─── BLE verbinding maken en configureren ────────────────────────
+async def ble_connect(device_name: str = None):
+    """
+    Zoekt een FP111 teller in de buurt en maakt verbinding.
+    Houdt de verbinding open met een keepalive.
+    """
+    global ble_client, ble_device, keepalive_task, connected
+
+    # Zorg dat oude verbinding volledig opgeruimd is
+    if ble_client:
+        try:
+            if ble_client.is_connected:
+                await ble_client.disconnect()
+        except Exception:
+            pass
+        ble_client = None
+
+    await ble_log(f"🔍 Scannen naar {device_name or 'FP111'} teller...")
+    await broadcast({"type": "status", "status": "scanning"})
+
+    # ── Stap 1: Zoek teller ──
+    found = None
+    try:
+        # Scan 15 seconden naar BLE apparaten in de buurt
+        devices = await BleakScanner.discover(timeout=15.0)
+        for d in devices:
+            name = d.name or ""
+            if name.startswith("FP1") or (device_name and device_name in name):
+                found = d
+                break
+    except BleakError as e:
+        await ble_log(f"❌ Scan fout: {e}")
+        await broadcast({"type": "status", "status": "error",
+                         "message": f"Bluetooth scan mislukt: {e}"})
+        return False
+
+    if not found:
+        await ble_log("❌ Geen FP111 teller gevonden")
+        await broadcast({
+            "type": "status", "status": "error",
+            "message": "Geen teller gevonden. Zorg dat BLE actief is (knop 5 sec ingedrukt, LED knippert blauw)."
+        })
+        return False
+
+    await ble_log(f"✅ Gevonden: {found.name} ({found.address})")
+    await broadcast({"type": "device", "name": found.name, "address": found.address})
+
+    # ── Stap 2: Verbinden ──
+    await ble_log("🔗 Verbinden...")
+    try:
+        # Altijd nieuwe client aanmaken
+        client = BleakClient(found.address, disconnected_callback=lambda c: log("BLE verbinding verbroken"))
+        await client.connect(timeout=15.0)
+    except Exception as e:
+        await ble_log(f"❌ Verbinding mislukt: {e}")
+        await broadcast({"type": "status", "status": "error", "message": str(e)})
+        return False
+
+    if not client.is_connected:
+        await ble_log("❌ Verbinding mislukt — probeer opnieuw")
+        await broadcast({"type": "status", "status": "error",
+                         "message": "Verbinding mislukt. Probeer opnieuw."})
+        return False
+
+    ble_client = client
+    ble_device = found
+    connected = True
+
+    await ble_log("✅ Verbonden!")
+    await broadcast({"type": "status", "status": "connected", "name": found.name})
+
+    # ── Stap 3: Notificaties aanzetten ──
+    global notify_queue
+    notify_queue = asyncio.Queue()
+
+    def notification_handler(sender, data):
+        """Ontvangt berichten van de teller"""
+        msg = data.decode("utf-8", errors="ignore")
+        log(f"Teller zegt: {msg}")
+        asyncio.create_task(broadcast({"type": "notify", "data": msg}))
+        asyncio.create_task(ble_log(f"📨 Teller: {msg}"))
+        # Als het een scanWIFI resultaat is, stuur direct naar dashboard
+        if "scanWIFI" in msg and "[" in msg:
+            asyncio.create_task(broadcast({
+                "type": "wifi_scan_result",
+                "raw": msg
+            }))
+        # Zet in queue voor wachtende functies
+        try:
+            notify_queue.put_nowait(msg)
+        except asyncio.QueueFull:
+            pass
+
+    try:
+        await client.start_notify(BLE_NOTIFY, notification_handler)
+        await ble_log("✅ Notificaties ingeschakeld")
+    except Exception as e:
+        await ble_log(f"⚠️ Notificaties niet beschikbaar: {e}")
+
+    # ── Stap 4: Keepalive starten ──
+    keepalive_task = asyncio.create_task(keepalive_loop())
+    await ble_log("📡 Keepalive actief — verbinding blijft open (elke 30s)")
+
+    return True
+
+# ─── Volledige configuratie flow ─────────────────────────────────
+async def ble_configure(wifi_ssid: str, wifi_pass: str, counter_name: str, notify_queue=None):
+    """
+    WiFi configuratie.
+    
+    De teller herstart zijn WiFi module elke minuut (na upload).
+    Volgorde: WIFI_AT → WIFI_ATE0 → WIFI_WAUTOCONN → verbindt met opgeslagen netwerk.
+    
+    We moeten het WiFi commando sturen TIJDENS WIFI_ATE0 zodat WAUTOCONN
+    ons nieuwe netwerk gebruikt in plaats van het opgeslagen netwerk.
+    
+    Strategie:
+    1. Scan WiFi (teller al in scan modus van dashboard scan)
+    2. Wacht op WIFI_ATE0 (komt binnen ~60s bij volgende upload cyclus)
+    3. Stuur WiFi commando direct na WIFI_ATE0
+    4. Wacht op netS:true
+    """
+    global ble_client
+
+    if notify_queue:
+        while not notify_queue.empty():
+            notify_queue.get_nowait()
+
+    await broadcast({"type": "progress", "step": "wifi", "pct": 20})
+    await ble_log("⏳ Wachten op WiFi module herstart (max 90s)...")
+    await ble_log("💡 De teller herstart zijn WiFi elke minuut na een upload")
+
+    wifi_cmd = json.dumps({
+        "wifiName": wifi_ssid,
+        "wifiPass": wifi_pass,
+        "wifiEnc": "WPA2_AES_PSK",
+        "countryCode": 0
+    })
+
+    # Wacht op WIFI_ATE0 — dan sturen we het WiFi commando
+    ate0_found = False
+    if notify_queue:
+        try:
+            deadline = asyncio.get_event_loop().time() + 90
+            while asyncio.get_event_loop().time() < deadline:
+                remaining = int(deadline - asyncio.get_event_loop().time())
+                try:
+                    msg = await asyncio.wait_for(notify_queue.get(), timeout=2.0)
+                    stripped = msg.strip()
+                    if stripped and stripped not in ('{"runLog":"on"}', '{"runLog":"off"}'):
+                        await ble_log(f"📨 {stripped[:60]}")
+                    if "WIFI_ATE0" in msg:
+                        await ble_log("✅ WIFI_ATE0 — WiFi commando insturen!")
+                        await asyncio.sleep(0.1)  # heel kort wachten
+                        await ble_send(ble_client, wifi_cmd)
+                        await ble_log(f"📶 WiFi commando verstuurd: {wifi_ssid}")
+                        ate0_found = True
+                        break
+                    if remaining % 10 == 0 and remaining < 90:
+                        await ble_log(f"⏳ Wachten op WIFI_ATE0... ({remaining}s)")
+                except asyncio.TimeoutError:
+                    pass
+        except Exception as e:
+            await ble_log(f"⚠️ {e}")
+
+    if not ate0_found:
+        await ble_log("⚠️ WIFI_ATE0 niet ontvangen — WiFi commando alsnog sturen")
+        await ble_send(ble_client, wifi_cmd)
+
+    await broadcast({"type": "progress", "step": "connecting", "pct": 60})
+
+    # Wacht op netS:true — max 30s
+    await ble_log("⏳ Wachten op verbindingsbevestiging...")
+    if notify_queue:
+        try:
+            deadline2 = asyncio.get_event_loop().time() + 30
+            while asyncio.get_event_loop().time() < deadline2:
+                remaining = int(deadline2 - asyncio.get_event_loop().time())
+                try:
+                    msg = await asyncio.wait_for(notify_queue.get(), timeout=2.0)
+                    stripped = msg.strip()
+                    if stripped and stripped not in ('{"runLog":"on"}', '{"runLog":"off"}'):
+                        await ble_log(f"📨 {stripped[:80]}")
+                    if "netS" in msg and "true" in msg.lower():
+                        await ble_log("🎉 Teller verbonden met nieuw netwerk!")
+                        server_cmd = json.dumps({
+                            "addr": "dashboard.detepo.com",
+                            "port": 8080,
+                            "api": "/api/upload",
+                            "https": 0
+                        })
+                        await ble_send(ble_client, server_cmd)
+                        await ble_log("🌐 Serveradres ingesteld")
+                        await broadcast({"type": "progress", "step": "done", "pct": 100})
+                        await ble_log("✅ Configuratie voltooid!")
+                        return
+                    if "STAINFO:3" in msg and wifi_ssid in msg:
+                        await ble_log(f"✅ Teller verbonden met {wifi_ssid}!")
+                except asyncio.TimeoutError:
+                    await ble_log(f"⏳ Wachten... ({remaining}s)")
+        except Exception as e:
+            await ble_log(f"⚠️ {e}")
+
+    await ble_log("⚠️ Timeout — controleer wachtwoord en probeer opnieuw")
+    await broadcast({"type": "progress", "step": "done", "pct": 100})
+
+
+# ─── WebSocket berichten verwerken ───────────────────────────────
+async def handle_message(ws, msg_data: str):
+    """Verwerkt een commando van het dashboard"""
+    global notify_queue
+    try:
+        msg = json.loads(msg_data)
+    except json.JSONDecodeError:
+        return
+
+    cmd = msg.get("cmd", "")
+    log(f"Commando ontvangen: {cmd}")
+
+    if cmd == "scan":
+        # Reset eerst als al verbonden
+        if connected:
+            await ble_disconnnect()
+            await asyncio.sleep(0.5)
+        await ble_connect(msg.get("deviceName"))
+
+    elif cmd == "scan_wifi":
+        if not ble_client or not ble_client.is_connected:
+            await ws.send(json.dumps({"type": "error", "message": "Niet verbonden"}))
+            return
+        await ble_log("📡 WiFi netwerken scannen...")
+        if notify_queue:
+            while not notify_queue.empty():
+                notify_queue.get_nowait()
+        await ble_send(ble_client, '{"scanWIFI":"get"}')
+        # Wacht op scanWIFI resultaat — max 15 seconden
+        scan_buffer = ""
+        if notify_queue:
+            try:
+                deadline = asyncio.get_event_loop().time() + 15
+                while asyncio.get_event_loop().time() < deadline:
+                    try:
+                        msg_data = await asyncio.wait_for(notify_queue.get(), timeout=3.0)
+                        scan_buffer += msg_data
+                        if "scanWIFI" in scan_buffer:
+                            # Stuur resultaat naar dashboard
+                            await ws.send(json.dumps({
+                                "type": "wifi_scan_result",
+                                "raw": scan_buffer
+                            }))
+                            await ble_log("✅ WiFi netwerken ontvangen!")
+                            break
+                    except asyncio.TimeoutError:
+                        break  # stop wachten
+            except Exception as e:
+                await ble_log(f"⚠️ Scan fout: {e}")
+
+    elif cmd == "send":
+        if not ble_client or not ble_client.is_connected:
+            await ws.send(json.dumps({"type": "error", "message": "Niet verbonden"}))
+            return
+        try:
+            await ble_send(ble_client, msg["data"])
+            await ble_log(f"📤 Verstuurd: {msg['data']}")
+            await ws.send(json.dumps({"type": "sent", "data": msg["data"]}))
+        except Exception as e:
+            await ws.send(json.dumps({"type": "error", "message": str(e)}))
+
+    elif cmd == "configure":
+        await ble_configure(
+            wifi_ssid=msg.get("wifi_ssid", ""),
+            wifi_pass=msg.get("wifi_pass", ""),
+            counter_name=msg.get("counter_name", ""),
+            notify_queue=notify_queue
+        )
+
+    elif cmd == "reset_day":
+        if not ble_client or not ble_client.is_connected:
+            await ws.send(json.dumps({"type": "error", "message": "Niet verbonden"}))
+            return
+        try:
+            await ble_send(ble_client, '{"clearDay":"1"}')
+            await ble_log("🔄 Dagdata gewist")
+            await ws.send(json.dumps({"type": "ok", "message": "Dagdata gewist"}))
+        except Exception as e:
+            await ws.send(json.dumps({"type": "error", "message": str(e)}))
+
+    elif cmd == "restart":
+        if not ble_client or not ble_client.is_connected:
+            await ws.send(json.dumps({"type": "error", "message": "Niet verbonden"}))
+            return
+        try:
+            await ble_send(ble_client, '{"restart":"1"}')
+            await ble_log("⚡ Teller herstart")
+            await ws.send(json.dumps({"type": "ok", "message": "Teller herstart"}))
+        except Exception as e:
+            await ws.send(json.dumps({"type": "error", "message": str(e)}))
+
+    elif cmd == "disconnect":
+        await ble_disconnnect()
+
+    elif cmd == "status":
+        await ws.send(json.dumps({
+            "type": "status",
+            "status": "connected" if connected else "idle",
+            "device": ble_device.name if ble_device else None,
+            "version": VERSION
+        }))
+
+# ─── WebSocket verbinding afhandelen ─────────────────────────────
+async def ws_handler(ws):
+    """Wordt aangeroepen voor elke nieuwe dashboard verbinding"""
+    dashboard_clients.add(ws)
+    log(f"Dashboard verbonden ({len(dashboard_clients)} actief)")
+
+    # Stuur huidige status naar nieuw verbonden dashboard
+    await ws.send(json.dumps({
+        "type": "status",
+        "status": "connected" if connected else "idle",
+        "version": VERSION,
+        "device": ble_device.name if ble_device else None
+    }))
+
+    try:
+        async for message in ws:
+            await handle_message(ws, message)
+    except websockets.exceptions.ConnectionClosed:
+        pass
+    finally:
+        dashboard_clients.discard(ws)
+        log(f"Dashboard verbroken ({len(dashboard_clients)} actief)")
+
+# ─── HTTP status endpoint (voor bridge detectie) ─────────────────
+async def http_status(ws):
+    """Eenvoudig HTTP endpoint voor /status — gebruikt door dashboard"""
+    # websockets library kan geen echte HTTP maar we kunnen het simuleren
+    pass
+
+# ─── HTTP server voor /status endpoint ───────────────────────────
+from aiohttp import web
+
+async def http_handler(request):
+    """
+    Beantwoordt HTTP GET /status verzoeken van het dashboard.
+    Hiermee detecteert het dashboard dat de bridge actief is.
+    """
+    data = {
+        "running": True,
+        "version": VERSION,
+        "connected": connected,
+        "device": ble_device.name if ble_device else None,
+        "clients": len(dashboard_clients)
+    }
+    return web.Response(
+        text=json.dumps(data),
+        content_type="application/json",
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+        }
+    )
+
+# ─── Hoofdprogramma ───────────────────────────────────────────────
+async def main():
+    print("\n" + "═" * 47)
+    print(f"  🔵 DETEPO BRIDGE v{VERSION} — Python editie")
+    print(f"  Bluetooth ↔️ Dashboard koppeling")
+    print("═" * 47 + "\n")
+    print("  Houd dit venster open tijdens configuratie.")
+    print("  Sluit dit venster als u klaar bent.\n")
+
+    # Start HTTP server voor status check
+    app = web.Application()
+    app.router.add_get("/status", http_handler)
+    app.router.add_options("/status", lambda r: web.Response(
+        headers={"Access-Control-Allow-Origin": "*",
+                 "Access-Control-Allow-Methods": "GET, OPTIONS"}))
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, HOST, PORT)
+    await site.start()
+    log(f"✅ HTTP status actief op http://{HOST}:{PORT}/status")
+
+    # Start WebSocket server op poort PORT+1
+    ws_port = PORT + 1
+    async with serve(ws_handler, HOST, ws_port):
+        log(f"✅ WebSocket actief op ws://{HOST}:{ws_port}")
+        log("✅ Klaar voor verbinding van dashboard")
+        print(f"\n  Open nu het Detepo dashboard in Edge/Chrome")
+        print(f"  en klik op '+ Teller verbinden'\n")
+
+        # Detecteer Edge of Chrome en open dashboard daarin
+        await asyncio.sleep(1)
+        import subprocess, os
+
+        URL = "https://dashboard.detepo.com"
+
+        # Alle mogelijke paden voor Edge en Chrome op Windows
+        browsers = [
+            # Microsoft Edge
+            r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+            r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+            os.path.expandvars(r"%LOCALAPPDATA%\Microsoft\Edge\Application\msedge.exe"),
+            # Google Chrome
+            r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+            r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+            os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe"),
+        ]
+
+        opened = False
+        for path in browsers:
+            if os.path.exists(path):
+                browser_name = "Edge" if "Edge" in path or "edge" in path else "Chrome"
+                subprocess.Popen([path, URL])
+                log(f"🌐 Dashboard geopend in {browser_name}")
+                opened = True
+                break
+
+        if not opened:
+            log("⚠️ Edge en Chrome niet gevonden — open handmatig: " + URL)
+            print(f"\n  Open handmatig: {URL}\n")
+
+        # Draai voor altijd
+        await asyncio.Future()
+
+# ─── Start ────────────────────────────────────────────────────────
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\n\nBridge afgesloten. Tot ziens!")
+    except OSError as e:
+        if "address already in use" in str(e).lower() or "10048" in str(e):
+            print(f"\n❌ Poort {PORT} is al in gebruik.")
+            print("De bridge draait mogelijk al. Controleer de taakbalk.\n")
+        else:
+            print(f"\n❌ Fout: {e}\n")
+        input("Druk op Enter om te sluiten...")
+        sys.exit(1)

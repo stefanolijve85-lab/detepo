@@ -1,0 +1,1030 @@
+<!DOCTYPE html>
+
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Detepo iOS App</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+–bg:        #070B14;
+–surface0:  #0D1526;
+–surface1:  #111E35;
+–surface2:  #172540;
+–border:    rgba(255,255,255,0.06);
+–border2:   rgba(255,255,255,0.10);
+–text-p:    #E2EAF8;
+–text-s:    #6B80A0;
+–text-t:    #3A4D68;
+–green:     #00E5A0;
+–amber:     #FFB020;
+–red:       #FF3B5C;
+–blue:      #3D8EFF;
+–cyan:      #00C8E0;
+–pink:      #FF6B9D;
+–font-d:    ‘Syne’, sans-serif;
+–font-m:    ‘JetBrains Mono’, monospace;
+}
+
+html, body { width: 100%; min-height: 100vh; background: var(–bg); }
+
+body {
+font-family: var(–font-d);
+color: var(–text-p);
+display: flex;
+flex-direction: column;
+align-items: center;
+padding: 48px 24px 64px;
+gap: 0;
+background-image:
+radial-gradient(ellipse 800px 400px at 20% 0%, rgba(61,142,255,0.06) 0%, transparent 60%),
+radial-gradient(ellipse 600px 300px at 80% 80%, rgba(0,229,160,0.04) 0%, transparent 60%);
+}
+
+/* ── Header ── */
+.header {
+text-align: center;
+margin-bottom: 56px;
+animation: fadeUp 0.7s ease both;
+}
+.header-label {
+font-family: var(–font-m);
+font-size: 10px;
+letter-spacing: 3px;
+color: var(–text-t);
+text-transform: uppercase;
+margin-bottom: 10px;
+}
+.header h1 {
+font-size: clamp(28px, 5vw, 44px);
+font-weight: 800;
+letter-spacing: -1.5px;
+background: linear-gradient(135deg, var(–text-p) 0%, var(–text-s) 100%);
+-webkit-background-clip: text;
+-webkit-text-fill-color: transparent;
+background-clip: text;
+line-height: 1.1;
+}
+.header-sub {
+margin-top: 10px;
+font-size: 13px;
+color: var(–text-s);
+font-weight: 400;
+letter-spacing: 0.2px;
+}
+
+/* ── Tab selector ── */
+.tabs {
+display: flex;
+gap: 4px;
+background: var(–surface0);
+border: 1px solid var(–border);
+border-radius: 14px;
+padding: 4px;
+margin-bottom: 40px;
+animation: fadeUp 0.7s 0.1s ease both;
+}
+.tab {
+padding: 8px 18px;
+border-radius: 10px;
+font-family: var(–font-d);
+font-size: 12px;
+font-weight: 600;
+color: var(–text-s);
+cursor: pointer;
+transition: all 0.2s;
+border: none;
+background: none;
+letter-spacing: 0.3px;
+}
+.tab.active {
+background: var(–surface2);
+color: var(–text-p);
+box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+}
+.tab:hover:not(.active) { color: var(–text-p); }
+
+/* ── Device grid ── */
+.device-grid {
+display: flex;
+gap: 32px;
+justify-content: center;
+align-items: flex-start;
+flex-wrap: wrap;
+animation: fadeUp 0.7s 0.2s ease both;
+}
+
+/* ── Phone shell ── */
+.phone-wrap { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.phone-name {
+font-family: var(–font-m);
+font-size: 9px;
+letter-spacing: 2.5px;
+color: var(–text-t);
+text-transform: uppercase;
+}
+
+.phone {
+width: 300px;
+background: #0A0F1E;
+border-radius: 46px;
+border: 1.5px solid rgba(255,255,255,0.10);
+overflow: hidden;
+position: relative;
+box-shadow:
+0 0 0 1px rgba(0,0,0,0.8),
+0 40px 100px rgba(0,0,0,0.7),
+0 0 60px rgba(61,142,255,0.04),
+inset 0 1px 0 rgba(255,255,255,0.06);
+}
+
+/* Dynamic island */
+.island-bar {
+height: 40px;
+background: #000;
+display: flex;
+align-items: center;
+justify-content: center;
+}
+.island {
+width: 90px;
+height: 22px;
+background: #0A0A0A;
+border-radius: 20px;
+display: flex;
+align-items: center;
+justify-content: center;
+gap: 6px;
+}
+.island-camera { width: 7px; height: 7px; border-radius: 50%; background: #1A1A1A; }
+.island-dot { width: 5px; height: 5px; border-radius: 50%; }
+.island-dot.green { background: var(–green); box-shadow: 0 0 8px var(–green); }
+.island-dot.amber { background: var(–amber); box-shadow: 0 0 8px var(–amber); }
+.island-dot.red   { background: var(–red);   box-shadow: 0 0 8px var(–red); }
+
+/* Status bar */
+.status {
+display: flex;
+justify-content: space-between;
+align-items: center;
+padding: 4px 20px 0;
+font-family: var(–font-m);
+font-size: 10px;
+color: var(–text-s);
+}
+
+/* Screen area */
+.screen {
+padding: 0 14px 20px;
+min-height: 580px;
+display: flex;
+flex-direction: column;
+gap: 8px;
+}
+
+/* Screen visibility */
+.screen-content { display: none; flex-direction: column; gap: 8px; flex: 1; }
+.screen-content.active { display: flex; }
+
+/* Tab bar */
+.app-tabbar {
+display: flex;
+border-top: 1px solid var(–border);
+margin: auto -14px 0;
+padding: 8px 0 12px;
+background: rgba(7,11,20,0.9);
+backdrop-filter: blur(12px);
+}
+.app-tab {
+flex: 1;
+display: flex;
+flex-direction: column;
+align-items: center;
+gap: 3px;
+opacity: 0.35;
+cursor: pointer;
+transition: opacity 0.15s;
+}
+.app-tab.active { opacity: 1; }
+.app-tab svg { width: 20px; height: 20px; }
+.app-tab-label { font-size: 8px; letter-spacing: 0.3px; color: var(–text-s); }
+.app-tab.active .app-tab-label { color: var(–blue); }
+
+/* ── Components ── */
+
+.screen-header {
+padding-top: 10px;
+display: flex;
+justify-content: space-between;
+align-items: flex-start;
+}
+.greeting { font-size: 9px; color: var(–text-t); letter-spacing: 1.5px; text-transform: uppercase; font-family: var(–font-m); }
+.loc-title { font-size: 17px; font-weight: 700; letter-spacing: -0.3px; margin-top: 2px; }
+
+.live-badge {
+display: flex; align-items: center; gap: 5px;
+background: var(–surface1); border: 1px solid var(–border2);
+border-radius: 20px; padding: 4px 9px;
+font-size: 10px; color: var(–text-s); font-family: var(–font-m);
+}
+.live-dot {
+width: 5px; height: 5px; border-radius: 50%;
+background: var(–green); box-shadow: 0 0 6px var(–green);
+animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.6;transform:scale(0.8)} }
+
+/* Hero card */
+.hero-card {
+background: var(–surface1);
+border: 1px solid var(–border);
+border-radius: 18px;
+padding: 14px 16px;
+position: relative;
+overflow: hidden;
+}
+.hero-card::before {
+content:’’;
+position: absolute;
+top: -30px; right: -30px;
+width: 100px; height: 100px;
+border-radius: 50%;
+background: radial-gradient(circle, rgba(0,229,160,0.08) 0%, transparent 70%);
+pointer-events: none;
+}
+.hero-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; }
+.hero-label { font-size: 9px; color: var(–text-t); letter-spacing: 1.5px; text-transform: uppercase; font-family: var(–font-m); }
+.trend-badge {
+font-family: var(–font-m); font-size: 9px; font-weight: 500;
+padding: 3px 7px; border-radius: 10px;
+}
+.trend-up   { background: rgba(0,229,160,0.12); color: var(–green); }
+.trend-down { background: rgba(255,59,92,0.12); color: var(–red); }
+.hero-num {
+font-size: 58px; font-weight: 800; letter-spacing: -4px;
+color: var(–text-p); line-height: 1; margin: 2px 0 1px;
+}
+.hero-sub { font-size: 10px; color: var(–text-s); }
+.status-pill {
+display: inline-flex; align-items: center; gap: 5px;
+padding: 5px 10px; border-radius: 20px;
+font-size: 10px; font-weight: 600;
+margin-top: 8px; border: 1px solid;
+}
+.pill-calm   { background: rgba(0,229,160,0.08); color: var(–green); border-color: rgba(0,229,160,0.2); }
+.pill-busy   { background: rgba(255,176,32,0.08); color: var(–amber); border-color: rgba(255,176,32,0.2); }
+.pill-crit   { background: rgba(255,59,92,0.08);  color: var(–red);   border-color: rgba(255,59,92,0.2); }
+.pill-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+
+/* Stat grid */
+.stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.stat-card {
+background: var(–surface1); border: 1px solid var(–border);
+border-radius: 12px; padding: 10px 12px;
+}
+.stat-lbl { font-size: 8px; color: var(–text-t); letter-spacing: 1.2px; text-transform: uppercase; font-family: var(–font-m); margin-bottom: 3px; }
+.stat-val { font-size: 20px; font-weight: 700; letter-spacing: -0.5px; }
+.stat-sub { font-size: 9px; color: var(–text-s); margin-top: 1px; }
+.col-in   { color: var(–cyan); }
+.col-out  { color: var(–pink); }
+.col-on   { color: var(–green); }
+.col-s    { color: var(–text-s); }
+
+/* Section label */
+.section-lbl { font-size: 8px; color: var(–text-t); letter-spacing: 1.5px; text-transform: uppercase; font-family: var(–font-m); margin-top: 2px; }
+
+/* Device row */
+.dev-row {
+display: flex; align-items: center; gap: 9px;
+background: var(–surface1); border: 1px solid var(–border);
+border-radius: 12px; padding: 9px 11px;
+}
+.dev-icon {
+width: 30px; height: 30px; border-radius: 8px;
+display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.dev-icon svg { width: 14px; height: 14px; }
+.icon-online  { background: rgba(0,229,160,0.1); }
+.icon-offline { background: rgba(255,59,92,0.1); }
+.dev-info { flex: 1; min-width: 0; }
+.dev-name { font-size: 11px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dev-sub  { font-size: 9px; color: var(–text-s); margin-top: 1px; font-family: var(–font-m); }
+.dev-count { text-align: right; }
+.dev-num { font-size: 18px; font-weight: 700; letter-spacing: -0.5px; font-family: var(–font-m); }
+.dev-today { font-size: 8px; color: var(–text-t); font-family: var(–font-m); }
+.dev-bar { height: 2px; background: var(–surface2); border-radius: 2px; margin-top: 2px; overflow: hidden; }
+.dev-fill { height: 100%; border-radius: 2px; }
+
+/* ── Screen 2: Live Flow ── */
+.flow-hdr { padding-top: 10px; }
+.flow-hdr h2 { font-size: 19px; font-weight: 700; letter-spacing: -0.4px; }
+.flow-hdr p { font-size: 9px; color: var(–text-s); margin-top: 2px; font-family: var(–font-m); }
+
+.counter-card {
+background: var(–surface1); border: 1px solid var(–border);
+border-radius: 14px; padding: 12px 13px;
+}
+.cc-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+.cc-name { font-size: 11px; font-weight: 700; }
+.cc-tag  { font-size: 8px; color: var(–text-t); font-family: var(–font-m); margin-top: 2px; letter-spacing: 0.5px; }
+.cc-status { display: flex; align-items: center; gap: 4px; font-size: 9px; font-family: var(–font-m); }
+.cc-io { display: flex; }
+.cc-col { flex: 1; text-align: center; }
+.cc-dir { font-size: 8px; letter-spacing: 1.5px; text-transform: uppercase; font-family: var(–font-m); margin-bottom: 1px; }
+.cc-big { font-size: 34px; font-weight: 700; letter-spacing: -2px; font-family: var(–font-m); }
+.cc-today { font-size: 8px; color: var(–text-t); font-family: var(–font-m); }
+.cc-div { width: 1px; background: var(–border); margin: 4px 0; }
+.sparkline { margin-top: 8px; opacity: 0.65; }
+
+.warning-strip {
+display: flex; align-items: center; gap: 6px;
+padding: 6px 9px; border-radius: 7px; margin-top: 6px;
+font-size: 9px; font-family: var(–font-m);
+}
+.warn-amber { background: rgba(255,176,32,0.07); color: var(–amber); border: 1px solid rgba(255,176,32,0.15); }
+.warn-red   { background: rgba(255,59,92,0.07);  color: var(–red);   border: 1px solid rgba(255,59,92,0.15); }
+
+/* insight mini */
+.insight-mini {
+background: var(–surface1); border: 1px solid rgba(61,142,255,0.15);
+border-radius: 12px; padding: 10px 12px;
+}
+.insight-head { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; }
+.insight-ico  { width: 24px; height: 24px; border-radius: 7px; background: rgba(61,142,255,0.1); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.insight-ico svg { width: 12px; height: 12px; }
+.insight-title { font-size: 11px; font-weight: 600; flex: 1; }
+.ai-chip { font-size: 8px; color: var(–blue); background: rgba(61,142,255,0.1); padding: 2px 5px; border-radius: 5px; font-family: var(–font-m); }
+.insight-body { font-size: 10px; color: var(–text-s); line-height: 1.5; }
+.insight-body strong { color: var(–text-p); }
+
+/* ── Screen 3: Insights ── */
+.period-picker {
+display: flex; gap: 0;
+background: var(–surface1); border: 1px solid var(–border);
+border-radius: 10px; padding: 3px; margin-top: 6px;
+}
+.period-btn {
+flex: 1; padding: 6px 0; text-align: center;
+font-size: 10px; font-weight: 600; color: var(–text-s);
+border-radius: 8px; cursor: pointer; transition: all 0.15s;
+border: none; background: none; font-family: var(–font-d);
+}
+.period-btn.active { background: var(–surface2); color: var(–text-p); }
+
+.stat-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; }
+
+.chart-card {
+background: var(–surface1); border: 1px solid var(–border);
+border-radius: 14px; padding: 12px 13px;
+}
+.chart-title { font-size: 8px; color: var(–text-t); letter-spacing: 1.5px; text-transform: uppercase; font-family: var(–font-m); margin-bottom: 10px; }
+.bar-chart { display: flex; align-items: flex-end; gap: 3px; height: 80px; }
+.bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.bar-in { border-radius: 2px 2px 0 0; background: var(–cyan); min-height: 2px; transition: height 0.4s ease; }
+.bar-lbl { font-size: 6px; color: var(–text-t); font-family: var(–font-m); }
+
+.peak-card {
+background: var(–surface1); border: 1px solid rgba(255,176,32,0.18);
+border-radius: 14px; padding: 12px 13px;
+display: flex; justify-content: space-between; align-items: center;
+}
+.peak-time { font-size: 16px; font-weight: 700; }
+.peak-sub { font-size: 9px; color: var(–text-s); margin-top: 2px; font-family: var(–font-m); }
+.peak-val { font-size: 26px; font-weight: 700; color: var(–cyan); text-align: right; font-family: var(–font-m); }
+.peak-unit { font-size: 8px; color: var(–text-t); font-family: var(–font-m); text-align: right; }
+
+/* ── Screen 4: Devices ── */
+.dev-full-card {
+background: var(–surface1); border: 1px solid var(–border);
+border-radius: 14px; overflow: hidden;
+}
+.dfc-head {
+display: flex; align-items: center; gap: 10px;
+padding: 11px 13px;
+}
+.dfc-icon { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
+.dfc-icon svg { width: 16px; height: 16px; }
+.dfc-name { font-size: 12px; font-weight: 700; }
+.dfc-loc  { font-size: 9px; color: var(–text-s); font-family: var(–font-m); margin-top: 1px; }
+.dfc-status { margin-left: auto; text-align: right; }
+.dfc-status-lbl { display: flex; align-items: center; gap: 4px; justify-content: flex-end; font-size: 9px; font-family: var(–font-m); }
+.dfc-lastseen { font-size: 8px; color: var(–text-t); font-family: var(–font-m); margin-top: 2px; }
+
+.dfc-divider { height: 1px; background: var(–border); margin: 0 13px; }
+
+.dfc-info { padding: 8px 13px; }
+.dfc-row { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.03); }
+.dfc-row:last-child { border-bottom: none; }
+.dfc-key { font-size: 9px; color: var(–text-t); font-family: var(–font-m); }
+.dfc-val { font-size: 9px; color: var(–text-s); font-family: var(–font-m); }
+.dfc-val.warn { color: var(–amber); }
+
+.reboot-btn {
+width: 100%; padding: 9px; text-align: center;
+font-size: 10px; font-weight: 600; color: var(–amber);
+border: none; background: none;
+border-top: 1px solid var(–border);
+cursor: pointer; font-family: var(–font-d);
+display: flex; align-items: center; justify-content: center; gap: 5px;
+}
+.reboot-btn svg { width: 11px; height: 11px; }
+
+/* ── Screen 5: Alerts ── */
+.filter-row { display: flex; gap: 5px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; margin-top: 4px; }
+.filter-chip {
+padding: 4px 10px; border-radius: 20px; font-size: 9px; font-weight: 600;
+color: var(–text-s); background: var(–surface1); border: 1px solid var(–border);
+white-space: nowrap; cursor: pointer; font-family: var(–font-d);
+}
+.filter-chip.active { background: var(–blue); color: #fff; border-color: var(–blue); }
+
+.alert-row {
+background: var(–surface1); border: 1px solid var(–border);
+border-radius: 12px; padding: 10px 11px;
+display: flex; align-items: flex-start; gap: 9px;
+}
+.alert-row.unread { border-color: rgba(61,142,255,0.2); }
+.alert-ico { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.alert-ico svg { width: 13px; height: 13px; }
+.alert-msg { font-size: 10px; line-height: 1.45; flex: 1; }
+.alert-time { font-size: 8px; color: var(–text-t); font-family: var(–font-m); margin-top: 3px; }
+.unread-dot { width: 7px; height: 7px; border-radius: 50%; background: var(–blue); flex-shrink: 0; margin-top: 4px; }
+
+/* ── Animations ── */
+@keyframes fadeUp {
+from { opacity: 0; transform: translateY(16px); }
+to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes countUp {
+from { opacity: 0; transform: scale(0.85); }
+to   { opacity: 1; transform: scale(1); }
+}
+.hero-num { animation: countUp 0.5s 0.3s ease both; }
+</style>
+
+</head>
+<body>
+
+<div class="header">
+  <div class="header-label">Detepo · iOS App · Design</div>
+  <h1>Realtime Bezoekersanalytics</h1>
+  <div class="header-sub">Mobile-first decision tool voor FOORIR FP111/FP112 tellers</div>
+</div>
+
+<!-- Tab selector -->
+
+<div class="tabs">
+  <button class="tab active" onclick="switchScreen('home',this)">Home</button>
+  <button class="tab" onclick="switchScreen('live',this)">Live Flow</button>
+  <button class="tab" onclick="switchScreen('insights',this)">Inzichten</button>
+  <button class="tab" onclick="switchScreen('devices',this)">Apparaten</button>
+  <button class="tab" onclick="switchScreen('alerts',this)">Meldingen</button>
+</div>
+
+<!-- Phones grid -->
+
+<div class="device-grid" id="phoneGrid">
+
+  <!-- ─── Phone 1: HOME ─── -->
+
+  <div class="phone-wrap" id="phone-home">
+    <div class="phone">
+      <div class="island-bar">
+        <div class="island">
+          <div class="island-camera"></div>
+          <div class="island-dot green"></div>
+        </div>
+      </div>
+      <div class="status">
+        <span>9:41</span>
+        <span style="font-size:8px;letter-spacing:1px">●●●● LTE</span>
+      </div>
+      <div class="screen">
+        <!-- Header -->
+        <div class="screen-header">
+          <div>
+            <div class="greeting">Goedemorgen</div>
+            <div class="loc-title">Winkel Utrecht</div>
+          </div>
+          <div class="live-badge"><div class="live-dot"></div>Live</div>
+        </div>
+
+```
+    <!-- Hero -->
+    <div class="hero-card">
+      <div class="hero-top">
+        <div class="hero-label">Nu binnen</div>
+        <div class="trend-badge trend-up">+18% gisteren</div>
+      </div>
+      <div class="hero-num">47</div>
+      <div class="hero-sub">personen aanwezig</div>
+      <div class="status-pill pill-busy">
+        <div class="pill-dot"></div>Druk
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-lbl">Ingangen</div>
+        <div class="stat-val col-in">183</div>
+        <div class="stat-sub">vandaag</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-lbl">Uitgangen</div>
+        <div class="stat-val col-out">136</div>
+        <div class="stat-sub">vandaag</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-lbl">Tellers</div>
+        <div class="stat-val col-on">1<span style="font-size:12px;color:var(--text-t)">/2</span></div>
+        <div class="stat-sub">online</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-lbl">Piekuur</div>
+        <div class="stat-val col-s" style="font-size:15px;letter-spacing:-0.3px">14:00</div>
+        <div class="stat-sub">verwacht</div>
+      </div>
+    </div>
+
+    <!-- Tellers -->
+    <div class="section-lbl">Tellers</div>
+
+    <div class="dev-row">
+      <div class="dev-icon icon-online">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M5 12.55a11 11 0 0114.08 0M1.42 9a16 16 0 0121.16 0M8.53 16.11a6 6 0 016.95 0M12 20h.01" stroke="var(--green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="dev-info">
+        <div class="dev-name">FP111-25420022</div>
+        <div class="dev-sub">Hoofdingang</div>
+        <div class="dev-bar"><div class="dev-fill" style="width:100%;background:var(--green)"></div></div>
+      </div>
+      <div class="dev-count">
+        <div class="dev-num col-in">5</div>
+        <div class="dev-today">vandaag</div>
+      </div>
+    </div>
+
+    <div class="dev-row">
+      <div class="dev-icon icon-offline">
+        <svg viewBox="0 0 24 24" fill="none"><line x1="1" y1="1" x2="23" y2="23" stroke="var(--red)" stroke-width="2" stroke-linecap="round"/><path d="M16.72 11.06A10.94 10.94 0 0119 12.55M5 12.55a10.94 10.94 0 015.17-2.39M10.71 5.05A16 16 0 0122.56 9M1.42 9a15.91 15.91 0 014.7-2.88M8.53 16.11a6 6 0 016.95 0M12 20h.01" stroke="var(--red)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="dev-info">
+        <div class="dev-name">Counter 11125420</div>
+        <div class="dev-sub">Zijafdeling · offline</div>
+        <div class="dev-bar"><div class="dev-fill" style="width:0%"></div></div>
+      </div>
+      <div class="dev-count">
+        <div class="dev-num" style="color:var(--text-t)">—</div>
+        <div class="dev-today">offline</div>
+      </div>
+    </div>
+
+    <!-- Tab bar -->
+    <div class="app-tabbar">
+      <div class="app-tab active">
+        <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1.5" stroke="var(--blue)" stroke-width="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5" stroke="var(--text-t)" stroke-width="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5" stroke="var(--text-t)" stroke-width="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5" stroke="var(--text-t)" stroke-width="1.5"/></svg>
+        <div class="app-tab-label">Home</div>
+      </div>
+      <div class="app-tab">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M5 12.55a11 11 0 0114.08 0M1.42 9a16 16 0 0121.16 0M8.53 16.11a6 6 0 016.95 0M12 20h.01" stroke="var(--text-t)" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <div class="app-tab-label">Live</div>
+      </div>
+      <div class="app-tab">
+        <svg viewBox="0 0 24 24" fill="none"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" stroke="var(--text-t)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <div class="app-tab-label">Inzichten</div>
+      </div>
+      <div class="app-tab">
+        <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="var(--text-t)" stroke-width="1.5"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2m-3.5-7.5-1.5 1.5M6.5 17.5 5 19m14 0-1.5-1.5M6.5 6.5 5 5" stroke="var(--text-t)" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <div class="app-tab-label">Apparaten</div>
+      </div>
+      <div class="app-tab">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0" stroke="var(--text-t)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <div class="app-tab-label">Meldingen</div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="phone-name">Home</div>
+```
+
+  </div>
+
+  <!-- ─── Phone 2: LIVE FLOW ─── -->
+
+  <div class="phone-wrap" id="phone-live" style="display:none">
+    <div class="phone">
+      <div class="island-bar">
+        <div class="island">
+          <div class="island-camera"></div>
+          <div class="island-dot green"></div>
+        </div>
+      </div>
+      <div class="status">
+        <span>9:41</span>
+        <span style="font-size:8px;letter-spacing:1px">●●●● LTE</span>
+      </div>
+      <div class="screen">
+        <div class="flow-hdr">
+          <h2>Live Flow</h2>
+          <p>Bijgewerkt 2s geleden</p>
+        </div>
+
+```
+    <!-- Counter 1 — online -->
+    <div class="counter-card">
+      <div class="cc-head">
+        <div>
+          <div class="cc-name">FP111-25420022</div>
+          <div class="cc-tag">HOOFDINGANG · INGANG</div>
+        </div>
+        <div class="cc-status" style="color:var(--green)">
+          <div class="live-dot"></div>Online
+        </div>
+      </div>
+      <div class="cc-io">
+        <div class="cc-col">
+          <div class="cc-dir" style="color:var(--cyan)">In</div>
+          <div class="cc-big" style="color:var(--cyan)">5</div>
+          <div class="cc-today">vandaag</div>
+        </div>
+        <div class="cc-div"></div>
+        <div class="cc-col">
+          <div class="cc-dir" style="color:var(--pink)">Uit</div>
+          <div class="cc-big" style="color:var(--pink)">5</div>
+          <div class="cc-today">vandaag</div>
+        </div>
+      </div>
+      <!-- sparkline -->
+      <div class="sparkline">
+        <svg width="100%" height="28" viewBox="0 0 260 28">
+          <defs>
+            <linearGradient id="sg" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="var(--cyan)" stop-opacity="0.3"/>
+              <stop offset="100%" stop-color="var(--cyan)" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <path d="M0,22 C20,20 30,16 50,14 C70,12 80,18 100,10 C120,2 130,8 150,6 C170,4 180,10 200,8 C220,6 240,4 260,5" fill="none" stroke="var(--cyan)" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M0,22 C20,20 30,16 50,14 C70,12 80,18 100,10 C120,2 130,8 150,6 C170,4 180,10 200,8 C220,6 240,4 260,5 L260,28 L0,28Z" fill="url(#sg)"/>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Counter 2 — offline -->
+    <div class="counter-card">
+      <div class="cc-head">
+        <div>
+          <div class="cc-name">Counter 11125420</div>
+          <div class="cc-tag">ZIJAFDELING · INGANG</div>
+        </div>
+        <div class="cc-status" style="color:var(--red)">
+          <div style="width:5px;height:5px;border-radius:50%;background:var(--red)"></div>Offline
+        </div>
+      </div>
+      <div class="cc-io">
+        <div class="cc-col">
+          <div class="cc-dir" style="color:var(--text-t)">In</div>
+          <div class="cc-big" style="color:var(--text-t)">—</div>
+          <div class="cc-today">geen data</div>
+        </div>
+        <div class="cc-div"></div>
+        <div class="cc-col">
+          <div class="cc-dir" style="color:var(--text-t)">Uit</div>
+          <div class="cc-big" style="color:var(--text-t)">—</div>
+          <div class="cc-today">geen data</div>
+        </div>
+      </div>
+      <div class="warning-strip warn-red">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" stroke="currentColor" stroke-width="2"/><line x1="12" y1="9" x2="12" y2="13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="12" y1="17" x2="12.01" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        Teller offline · firmware update vereist
+      </div>
+    </div>
+
+    <!-- AI insight card -->
+    <div class="insight-mini">
+      <div class="insight-head">
+        <div class="insight-ico">
+          <svg viewBox="0 0 24 24" fill="none"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="insight-title">Piekuur nadert om 14:00</div>
+        <div class="ai-chip">AI</div>
+      </div>
+      <div class="insight-body">Historisch is <strong>14:00–15:00</strong> het drukste uur. Overweeg extra personeel om <strong>13:45</strong>.</div>
+    </div>
+
+    <div class="app-tabbar">
+      <div class="app-tab"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1.5" stroke="var(--text-t)" stroke-width="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5" stroke="var(--text-t)" stroke-width="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5" stroke="var(--text-t)" stroke-width="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5" stroke="var(--text-t)" stroke-width="1.5"/></svg><div class="app-tab-label">Home</div></div>
+      <div class="app-tab active"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12.55a11 11 0 0114.08 0M1.42 9a16 16 0 0121.16 0M8.53 16.11a6 6 0 016.95 0M12 20h.01" stroke="var(--blue)" stroke-width="1.5" stroke-linecap="round"/></svg><div class="app-tab-label">Live</div></div>
+      <div class="app-tab"><svg viewBox="0 0 24 24" fill="none"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" stroke="var(--text-t)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><div class="app-tab-label">Inzichten</div></div>
+      <div class="app-tab"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="var(--text-t)" stroke-width="1.5"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2" stroke="var(--text-t)" stroke-width="1.5" stroke-linecap="round"/></svg><div class="app-tab-label">Apparaten</div></div>
+      <div class="app-tab"><svg viewBox="0 0 24 24" fill="none"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" stroke="var(--text-t)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><div class="app-tab-label">Meldingen</div></div>
+    </div>
+  </div>
+</div>
+<div class="phone-name">Live Flow</div>
+```
+
+  </div>
+
+  <!-- ─── Phone 3: INSIGHTS ─── -->
+
+  <div class="phone-wrap" id="phone-insights" style="display:none">
+    <div class="phone">
+      <div class="island-bar"><div class="island"><div class="island-camera"></div><div class="island-dot green"></div></div></div>
+      <div class="status"><span>9:41</span><span style="font-size:8px;letter-spacing:1px">●●●● LTE</span></div>
+      <div class="screen">
+        <div style="padding-top:10px">
+          <div style="font-size:19px;font-weight:700;letter-spacing:-0.4px">Inzichten</div>
+        </div>
+
+```
+    <div class="period-picker">
+      <button class="period-btn active">Dag</button>
+      <button class="period-btn">Week</button>
+      <button class="period-btn">Maand</button>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat-card"><div class="stat-lbl">Totaal</div><div class="stat-val col-in" style="font-size:17px">183</div><div class="stat-sub">bezoekers</div></div>
+      <div class="stat-card"><div class="stat-lbl">Gemiddeld</div><div class="stat-val col-s" style="font-size:17px">23</div><div class="stat-sub">per uur</div></div>
+      <div class="stat-card"><div class="stat-lbl">Piekuur</div><div class="stat-val" style="font-size:14px;color:var(--amber)">14:00</div><div class="stat-sub">drukst</div></div>
+    </div>
+
+    <!-- Bar chart -->
+    <div class="chart-card">
+      <div class="chart-title">Bezoekers per uur</div>
+      <div class="bar-chart" id="barChart"></div>
+    </div>
+
+    <!-- Peak hour card -->
+    <div class="peak-card">
+      <div>
+        <div class="peak-time">14:00 – 15:00</div>
+        <div class="peak-sub">drukste uur vandaag</div>
+      </div>
+      <div>
+        <div class="peak-val">42</div>
+        <div class="peak-unit">bezoekers</div>
+      </div>
+    </div>
+
+    <div class="app-tabbar">
+      <div class="app-tab"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1.5" stroke="var(--text-t)" stroke-width="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5" stroke="var(--text-t)" stroke-width="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5" stroke="var(--text-t)" stroke-width="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5" stroke="var(--text-t)" stroke-width="1.5"/></svg><div class="app-tab-label">Home</div></div>
+      <div class="app-tab"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12.55a11 11 0 0114.08 0M1.42 9a16 16 0 0121.16 0M8.53 16.11a6 6 0 016.95 0M12 20h.01" stroke="var(--text-t)" stroke-width="1.5" stroke-linecap="round"/></svg><div class="app-tab-label">Live</div></div>
+      <div class="app-tab active"><svg viewBox="0 0 24 24" fill="none"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" stroke="var(--blue)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><div class="app-tab-label">Inzichten</div></div>
+      <div class="app-tab"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="var(--text-t)" stroke-width="1.5"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2" stroke="var(--text-t)" stroke-width="1.5" stroke-linecap="round"/></svg><div class="app-tab-label">Apparaten</div></div>
+      <div class="app-tab"><svg viewBox="0 0 24 24" fill="none"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" stroke="var(--text-t)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><div class="app-tab-label">Meldingen</div></div>
+    </div>
+  </div>
+</div>
+<div class="phone-name">Inzichten</div>
+```
+
+  </div>
+
+  <!-- ─── Phone 4: DEVICES ─── -->
+
+  <div class="phone-wrap" id="phone-devices" style="display:none">
+    <div class="phone">
+      <div class="island-bar"><div class="island"><div class="island-camera"></div><div class="island-dot amber"></div></div></div>
+      <div class="status"><span>9:41</span><span style="font-size:8px;letter-spacing:1px">●●●● LTE</span></div>
+      <div class="screen">
+        <div style="padding-top:10px;display:flex;justify-content:space-between;align-items:center">
+          <div style="font-size:19px;font-weight:700;letter-spacing:-0.4px">Apparaten</div>
+          <div style="display:flex;gap:6px">
+            <span style="background:rgba(0,229,160,0.1);color:var(--green);border-radius:20px;padding:3px 8px;font-size:9px;font-family:var(--font-m)">● 1 online</span>
+            <span style="background:rgba(255,59,92,0.1);color:var(--red);border-radius:20px;padding:3px 8px;font-size:9px;font-family:var(--font-m)">● 1 offline</span>
+          </div>
+        </div>
+
+```
+    <!-- Device 1 — online -->
+    <div class="dev-full-card">
+      <div class="dfc-head">
+        <div class="dfc-icon icon-online">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M5 12.55a11 11 0 0114.08 0M1.42 9a16 16 0 0121.16 0M8.53 16.11a6 6 0 016.95 0M12 20h.01" stroke="var(--green)" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <div><div class="dfc-name">FP111-25420022</div><div class="dfc-loc">Hoofdingang</div></div>
+        <div class="dfc-status">
+          <div class="dfc-status-lbl" style="color:var(--green)"><div style="width:5px;height:5px;border-radius:50%;background:var(--green)"></div>Online</div>
+          <div class="dfc-lastseen">nu actief</div>
+        </div>
+      </div>
+      <div class="dfc-divider"></div>
+      <div class="dfc-info">
+        <div class="dfc-row"><span class="dfc-key">Apparaat-ID</span><span class="dfc-val">25420022</span></div>
+        <div class="dfc-row"><span class="dfc-key">Firmware</span><span class="dfc-val" style="color:var(--green)">V1.1.037 ✓</span></div>
+        <div class="dfc-row"><span class="dfc-key">Batterij</span><span class="dfc-val">78%</span></div>
+        <div class="dfc-row"><span class="dfc-key">Verbinding</span><span class="dfc-val">WiFi · Sincerus</span></div>
+      </div>
+      <div class="dfc-divider"></div>
+      <button class="reboot-btn">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M1 4v6h6M23 20v-6h-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Herstart op afstand
+      </button>
+    </div>
+
+    <!-- Device 2 — offline + update needed -->
+    <div class="dev-full-card" style="border-color:rgba(255,59,92,0.2)">
+      <div class="dfc-head">
+        <div class="dfc-icon icon-offline">
+          <svg viewBox="0 0 24 24" fill="none"><line x1="1" y1="1" x2="23" y2="23" stroke="var(--red)" stroke-width="2" stroke-linecap="round"/><path d="M16.72 11.06A10.94 10.94 0 0119 12.55M5 12.55a10.94 10.94 0 015.17-2.39M8.53 16.11a6 6 0 016.95 0M12 20h.01" stroke="var(--red)" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <div><div class="dfc-name">Counter 11125420</div><div class="dfc-loc">Zijafdeling</div></div>
+        <div class="dfc-status">
+          <div class="dfc-status-lbl" style="color:var(--red)"><div style="width:5px;height:5px;border-radius:50%;background:var(--red)"></div>Offline</div>
+          <div class="dfc-lastseen">3u geleden</div>
+        </div>
+      </div>
+      <div class="dfc-divider"></div>
+      <div class="dfc-info">
+        <div class="dfc-row"><span class="dfc-key">Apparaat-ID</span><span class="dfc-val">11125420</span></div>
+        <div class="dfc-row"><span class="dfc-key">Firmware</span><span class="dfc-val warn">V1.0.021 · update!</span></div>
+        <div class="dfc-row"><span class="dfc-key">Batterij</span><span class="dfc-val" style="color:var(--red)">12%</span></div>
+        <div class="dfc-row"><span class="dfc-key">Verbinding</span><span class="dfc-val">BLE · niet bereikbaar</span></div>
+      </div>
+      <div class="warning-strip warn-amber" style="margin:0 10px 8px;border-radius:8px">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" stroke="currentColor" stroke-width="2"/><line x1="12" y1="9" x2="12" y2="13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        Firmware update beschikbaar (V1.1.037)
+      </div>
+      <div class="dfc-divider"></div>
+      <button class="reboot-btn" style="color:var(--red)">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M1 4v6h6M23 20v-6h-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Herstart op afstand
+      </button>
+    </div>
+
+    <div class="app-tabbar">
+      <div class="app-tab"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1.5" stroke="var(--text-t)" stroke-width="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5" stroke="var(--text-t)" stroke-width="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5" stroke="var(--text-t)" stroke-width="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5" stroke="var(--text-t)" stroke-width="1.5"/></svg><div class="app-tab-label">Home</div></div>
+      <div class="app-tab"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12.55a11 11 0 0114.08 0M1.42 9a16 16 0 0121.16 0M8.53 16.11a6 6 0 016.95 0M12 20h.01" stroke="var(--text-t)" stroke-width="1.5" stroke-linecap="round"/></svg><div class="app-tab-label">Live</div></div>
+      <div class="app-tab"><svg viewBox="0 0 24 24" fill="none"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" stroke="var(--text-t)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><div class="app-tab-label">Inzichten</div></div>
+      <div class="app-tab active"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="var(--blue)" stroke-width="1.5"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2" stroke="var(--blue)" stroke-width="1.5" stroke-linecap="round"/></svg><div class="app-tab-label">Apparaten</div></div>
+      <div class="app-tab"><svg viewBox="0 0 24 24" fill="none"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" stroke="var(--text-t)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><div class="app-tab-label">Meldingen</div></div>
+    </div>
+  </div>
+</div>
+<div class="phone-name">Apparaten</div>
+```
+
+  </div>
+
+  <!-- ─── Phone 5: ALERTS ─── -->
+
+  <div class="phone-wrap" id="phone-alerts" style="display:none">
+    <div class="phone">
+      <div class="island-bar"><div class="island"><div class="island-camera"></div><div class="island-dot red"></div></div></div>
+      <div class="status"><span>9:41</span><span style="font-size:8px;letter-spacing:1px">●●●● LTE</span></div>
+      <div class="screen">
+        <div style="padding-top:10px;display:flex;justify-content:space-between;align-items:center">
+          <div style="font-size:19px;font-weight:700;letter-spacing:-0.4px">Meldingen <span style="color:var(--blue);font-size:14px">3</span></div>
+          <button style="font-size:9px;color:var(--blue);background:none;border:none;cursor:pointer;font-family:var(--font-d);font-weight:600">Alles gelezen</button>
+        </div>
+
+```
+    <div class="filter-row">
+      <div class="filter-chip active">Alle</div>
+      <div class="filter-chip">Ongelezen</div>
+      <div class="filter-chip">Apparaten</div>
+      <div class="filter-chip">Bezetting</div>
+    </div>
+
+    <!-- Alert 1 — unread, device offline -->
+    <div class="alert-row unread">
+      <div class="alert-ico" style="background:rgba(255,59,92,0.1)">
+        <svg viewBox="0 0 24 24" fill="none"><line x1="1" y1="1" x2="23" y2="23" stroke="var(--red)" stroke-width="2" stroke-linecap="round"/><path d="M16.72 11.06A10.94 10.94 0 0119 12.55M8.53 16.11a6 6 0 016.95 0M12 20h.01" stroke="var(--red)" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </div>
+      <div style="flex:1">
+        <div class="alert-msg">Counter 11125420 is offline gegaan. Teldata kan onvolledig zijn.</div>
+        <div class="alert-time">3 uur geleden</div>
+      </div>
+      <div class="unread-dot"></div>
+    </div>
+
+    <!-- Alert 2 — unread, high occupancy -->
+    <div class="alert-row unread">
+      <div class="alert-ico" style="background:rgba(255,176,32,0.1)">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" stroke="var(--amber)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div style="flex:1">
+        <div class="alert-msg">Hoge bezetting — 83%. Er zijn 47 van 57 bezoekers binnen.</div>
+        <div class="alert-time">1 uur geleden</div>
+      </div>
+      <div class="unread-dot"></div>
+    </div>
+
+    <!-- Alert 3 — unread, anomaly -->
+    <div class="alert-row unread">
+      <div class="alert-ico" style="background:rgba(255,176,32,0.1)">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" stroke="var(--amber)" stroke-width="1.5"/><line x1="12" y1="9" x2="12" y2="13" stroke="var(--amber)" stroke-width="1.5" stroke-linecap="round"/><line x1="12" y1="17" x2="12.01" y2="17" stroke="var(--amber)" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </div>
+      <div style="flex:1">
+        <div class="alert-msg">Afwijkend patroon: het bezoekersaantal dit uur is significant hoger dan normaal.</div>
+        <div class="alert-time">45 min geleden</div>
+      </div>
+      <div class="unread-dot"></div>
+    </div>
+
+    <!-- Alert 4 — read, daily report -->
+    <div class="alert-row">
+      <div class="alert-ico" style="background:rgba(61,142,255,0.1)">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="var(--blue)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><polyline points="14 2 14 8 20 8" stroke="var(--blue)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div style="flex:1">
+        <div class="alert-msg" style="color:var(--text-s)">Dagrapport gisteren: 312 bezoekers geteld. Drukste uur 14:00.</div>
+        <div class="alert-time">Gisteren 18:00</div>
+      </div>
+    </div>
+
+    <div class="app-tabbar">
+      <div class="app-tab"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1.5" stroke="var(--text-t)" stroke-width="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5" stroke="var(--text-t)" stroke-width="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5" stroke="var(--text-t)" stroke-width="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5" stroke="var(--text-t)" stroke-width="1.5"/></svg><div class="app-tab-label">Home</div></div>
+      <div class="app-tab"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12.55a11 11 0 0114.08 0M1.42 9a16 16 0 0121.16 0M8.53 16.11a6 6 0 016.95 0M12 20h.01" stroke="var(--text-t)" stroke-width="1.5" stroke-linecap="round"/></svg><div class="app-tab-label">Live</div></div>
+      <div class="app-tab"><svg viewBox="0 0 24 24" fill="none"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" stroke="var(--text-t)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><div class="app-tab-label">Inzichten</div></div>
+      <div class="app-tab"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="var(--text-t)" stroke-width="1.5"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2" stroke="var(--text-t)" stroke-width="1.5" stroke-linecap="round"/></svg><div class="app-tab-label">Apparaten</div></div>
+      <div class="app-tab active"><svg viewBox="0 0 24 24" fill="none"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" stroke="var(--blue)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><div class="app-tab-label">Meldingen</div></div>
+    </div>
+  </div>
+</div>
+<div class="phone-name">Meldingen</div>
+```
+
+  </div>
+
+</div><!-- end device-grid -->
+
+<script>
+// ── Bar chart data ──
+const hourData = [2,1,4,1,0,1,5,12,18,22,28,31,35,38,42,36,30,24,18,14,10,7,4,2];
+const peakHour = 14;
+
+function buildChart() {
+  const container = document.getElementById('barChart');
+  if (!container) return;
+  const max = Math.max(...hourData);
+  const chartH = 68;
+  container.innerHTML = '';
+  hourData.slice(8, 20).forEach((v, i) => {
+    const hour = i + 8;
+    const wrap = document.createElement('div');
+    wrap.className = 'bar-wrap';
+    const bar = document.createElement('div');
+    bar.className = 'bar-in';
+    const h = Math.max((v / max) * chartH, 2);
+    bar.style.height = h + 'px';
+    bar.style.width = '100%';
+    bar.style.opacity = hour === peakHour ? '1' : '0.45';
+    if (hour === peakHour) {
+      bar.style.background = 'var(--amber)';
+      bar.style.boxShadow = '0 0 8px rgba(255,176,32,0.4)';
+    }
+    const lbl = document.createElement('div');
+    lbl.className = 'bar-lbl';
+    lbl.textContent = hour % 3 === 0 ? hour + '' : '';
+    wrap.appendChild(bar);
+    wrap.appendChild(lbl);
+    container.appendChild(wrap);
+  });
+}
+
+// ── Screen switching ──
+const screens = ['home', 'live', 'insights', 'devices', 'alerts'];
+
+function switchScreen(name, btn) {
+  // Update tab buttons
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+
+  // Show/hide phones
+  screens.forEach(s => {
+    const el = document.getElementById('phone-' + s);
+    if (el) el.style.display = s === name ? 'flex' : 'none';
+  });
+
+  if (name === 'insights') buildChart();
+}
+
+// Init
+buildChart();
+
+// Period picker interaction
+document.addEventListener('click', e => {
+  const btn = e.target.closest('.period-btn');
+  if (!btn) return;
+  btn.closest('.period-picker').querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+});
+
+// Filter chips
+document.addEventListener('click', e => {
+  const chip = e.target.closest('.filter-chip');
+  if (!chip) return;
+  chip.closest('.filter-row').querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+  chip.classList.add('active');
+});
+</script>
+
+</body>
+</html>
