@@ -15,13 +15,16 @@ import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import detepoLogo from "@/assets/images/detepo-logo.png";
-import { useAuth, DETEPO_API_BASE } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useTheme } from "@/contexts/ThemeContext";
 import { useColors } from "@/hooks/useColors";
 import { LanguagePicker } from "@/components/LanguagePicker";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 export default function LoginScreen() {
   const colors = useColors();
+  const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { login, isAuthenticated, loading: authLoading } = useAuth();
@@ -35,6 +38,22 @@ export default function LoginScreen() {
   if (!authLoading && isAuthenticated) {
     return <Redirect href="/" />;
   }
+
+  const isLight = theme === "light";
+
+  // Light theme: brand blue card with white text. Dark theme: navy card.
+  const cardBg = isLight ? "#3D8EFF" : "rgba(17,30,53,0.94)";
+  const cardBorder = isLight ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.06)";
+  const onCardText = "#FFFFFF";
+  const onCardMuted = "rgba(234,234,234,0.85)";
+  const onCardSubtle = "rgba(234,234,234,0.65)";
+  const inputBg = isLight ? "rgba(255,255,255,0.18)" : "#172540";
+  const inputBorder = isLight ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.08)";
+  const inputText = "#FFFFFF";
+  const inputPlaceholder = "rgba(234,234,234,0.55)";
+  const buttonBg = isLight ? "#FFFFFF" : "#3D8EFF";
+  const buttonText = isLight ? "#1E40AF" : "#FFFFFF";
+  const glowColor = isLight ? "rgba(61,142,255,0.22)" : "rgba(61,142,255,0.14)";
 
   const submit = async () => {
     if (!email.trim() || !password) {
@@ -58,25 +77,26 @@ export default function LoginScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
       style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top + 20 }]}
     >
-      <View style={[styles.langWrap, { top: insets.top + 12 }]}>
+      <View style={[styles.topActions, { top: insets.top + 12 }]}>
+        <ThemeToggle />
         <LanguagePicker />
       </View>
-      <View style={styles.glowTop} />
-      <View style={styles.card}>
+      <View style={[styles.glowTop, { backgroundColor: glowColor }]} />
+      <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder }]}>
         <Image
           source={detepoLogo}
           style={styles.logoImage}
           contentFit="contain"
           tintColor="#FFFFFF"
         />
-        <Text style={[styles.title, { color: colors.foreground }]}>Detepo</Text>
-        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+        <Text style={[styles.title, { color: onCardText }]}>Detepo</Text>
+        <Text style={[styles.subtitle, { color: onCardMuted }]}>
           {t("login.subtitle")}
         </Text>
 
         <View style={styles.form}>
           <View>
-            <Text style={[styles.label, { color: colors.textSecondary }]}>{t("login.email")}</Text>
+            <Text style={[styles.label, { color: onCardMuted }]}>{t("login.email")}</Text>
             <TextInput
               value={email}
               onChangeText={setEmail}
@@ -85,32 +105,32 @@ export default function LoginScreen() {
               keyboardType="email-address"
               textContentType="emailAddress"
               placeholder={t("login.emailPlaceholder")}
-              placeholderTextColor={colors.textTertiary}
-              style={[styles.input, { borderColor: colors.border, color: colors.foreground, backgroundColor: colors.surface2 }]}
+              placeholderTextColor={inputPlaceholder}
+              style={[styles.input, { borderColor: inputBorder, color: inputText, backgroundColor: inputBg }]}
             />
           </View>
           <View>
-            <Text style={[styles.label, { color: colors.textSecondary }]}>{t("login.password")}</Text>
-            <View style={[styles.passwordWrap, { borderColor: colors.border, backgroundColor: colors.surface2 }]}>
+            <Text style={[styles.label, { color: onCardMuted }]}>{t("login.password")}</Text>
+            <View style={[styles.passwordWrap, { borderColor: inputBorder, backgroundColor: inputBg }]}>
               <TextInput
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={!showPassword}
                 textContentType="password"
                 placeholder={t("login.passwordPlaceholder")}
-                placeholderTextColor={colors.textTertiary}
-                style={[styles.passwordInput, { color: colors.foreground }]}
+                placeholderTextColor={inputPlaceholder}
+                style={[styles.passwordInput, { color: inputText }]}
                 onSubmitEditing={submit}
               />
               <Pressable onPress={() => setShowPassword((value) => !value)} hitSlop={10} style={styles.eyeButton}>
-                <Feather name={showPassword ? "eye-off" : "eye"} size={18} color={colors.textSecondary} />
+                <Feather name={showPassword ? "eye-off" : "eye"} size={18} color={onCardMuted} />
               </Pressable>
             </View>
           </View>
 
           {error ? (
             <View style={styles.errorBox}>
-              <Text style={[styles.errorText, { color: colors.red }]}>{error}</Text>
+              <Text style={[styles.errorText, { color: "#FFD2D8" }]}>{error}</Text>
             </View>
           ) : null}
 
@@ -119,20 +139,16 @@ export default function LoginScreen() {
             disabled={submitting || authLoading}
             style={({ pressed }) => [
               styles.button,
-              { backgroundColor: colors.blue, opacity: pressed || submitting || authLoading ? 0.72 : 1 },
+              { backgroundColor: buttonBg, opacity: pressed || submitting || authLoading ? 0.72 : 1 },
             ]}
           >
             {submitting || authLoading ? (
-              <ActivityIndicator color="#FFFFFF" />
+              <ActivityIndicator color={buttonText} />
             ) : (
-              <Text style={styles.buttonText}>{t("login.submit")}</Text>
+              <Text style={[styles.buttonText, { color: buttonText }]}>{t("login.submit")}</Text>
             )}
           </Pressable>
         </View>
-
-        <Text style={[styles.footer, { color: colors.textTertiary }]}>
-          {t("login.connection")}: {DETEPO_API_BASE.replace(/\/api$/, "")}
-        </Text>
       </View>
     </KeyboardAvoidingView>
   );
@@ -144,10 +160,13 @@ const styles = StyleSheet.create({
     padding: 16,
     justifyContent: "center",
   },
-  langWrap: {
+  topActions: {
     position: "absolute",
     right: 16,
     zIndex: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   glowTop: {
     position: "absolute",
@@ -156,11 +175,8 @@ const styles = StyleSheet.create({
     width: 320,
     height: 320,
     borderRadius: 160,
-    backgroundColor: "rgba(61,142,255,0.14)",
   },
   card: {
-    backgroundColor: "rgba(17,30,53,0.94)",
-    borderColor: "rgba(255,255,255,0.06)",
     borderWidth: 1,
     borderRadius: 24,
     padding: 24,
@@ -217,8 +233,8 @@ const styles = StyleSheet.create({
   },
   errorBox: {
     borderRadius: 12,
-    backgroundColor: "rgba(255,59,92,0.08)",
-    borderColor: "rgba(255,59,92,0.18)",
+    backgroundColor: "rgba(255,59,92,0.18)",
+    borderColor: "rgba(255,255,255,0.18)",
     borderWidth: 1,
     padding: 10,
   },
@@ -234,13 +250,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   buttonText: {
-    color: "#FFFFFF",
     fontSize: 15,
     fontWeight: "700",
-  },
-  footer: {
-    fontSize: 10,
-    textAlign: "center",
-    marginTop: 8,
   },
 });

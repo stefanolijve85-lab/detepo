@@ -116,7 +116,7 @@ async function verifyDeviceOwnership(
   if (normBle !== normSerial) {
     return {
       ok: false,
-      reason: `Serienummer "${enteredSerial}" komt niet exact overeen met BLE-apparaat "${bleDeviceName}". Voer het volledige apparaatnaam in zoals weergegeven (bijv. FP111-ABC123).`,
+      reason: `Serienummer "${enteredSerial}" komt niet exact overeen met het gekoppelde apparaat "${bleDeviceName}". Voer het volledige apparaatnaam in zoals weergegeven.`,
     };
   }
 
@@ -370,7 +370,7 @@ export function useBLE() {
     setDevices([]);
     setStep("scanning");
     setErrorMessage("");
-    addLog("🔍 Scannen naar FP111 tellers…");
+    addLog("🔍 Scannen naar WiFi Tellers…");
 
     manager.startDeviceScan(
       null,
