@@ -23,6 +23,10 @@ function NativeTabLayout() {
         <Icon sf={{ default: "chart.xyaxis.line", selected: "chart.xyaxis.line" }} />
         <Label>{t("tab.insights")}</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="locations">
+        <Icon sf={{ default: "mappin.and.ellipse", selected: "mappin.and.ellipse" }} />
+        <Label>{t("tab.locations")}</Label>
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="live">
         <Icon sf={{ default: "plus.circle", selected: "plus.circle.fill" }} />
         <Label>{t("tab.teller")}</Label>
@@ -86,6 +90,13 @@ function ClassicTabLayout() {
         options={{
           title: t("tab.insights"),
           tabBarIcon: ({ color }) => <Feather name="activity" size={20} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="locations"
+        options={{
+          title: t("tab.locations"),
+          tabBarIcon: ({ color }) => <Feather name="map-pin" size={20} color={color} />,
         }}
       />
       <Tabs.Screen

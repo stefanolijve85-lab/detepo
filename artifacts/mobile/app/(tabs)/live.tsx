@@ -2,12 +2,15 @@ import { ScrollView, View, Text, StyleSheet, Platform, Pressable, Alert } from "
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Feather } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { useColors } from "@/hooks/useColors";
 import { useDashboard } from "@/contexts/DashboardContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { LanguagePicker } from "@/components/LanguagePicker";
-import { CollapsibleDevice } from "@/components/CollapsibleDevice";
+
+import counterWifi from "@/assets/images/counter-wifi.png";
+import counter3d from "@/assets/images/counter-3d.png";
 
 export default function TellerScreen() {
   const colors = useColors();
@@ -40,9 +43,9 @@ export default function TellerScreen() {
         </View>
       </View>
 
-      {/* ── Add options first ── */}
       <Text style={[styles.sectionLabel, { color: colors.textTertiary }]}>{t("teller.add")}</Text>
 
+      {/* ── WiFi counter (BLE/FP111) ── */}
       <Pressable
         onPress={() => router.push("/bluetooth-scan")}
         style={({ pressed }) => [
@@ -67,6 +70,11 @@ export default function TellerScreen() {
         <Feather name="chevron-right" size={18} color={colors.textTertiary} />
       </Pressable>
 
+      <View style={[styles.productCard, { backgroundColor: colors.surface1 }]}>
+        <Image source={counterWifi} style={styles.productImage} contentFit="contain" />
+      </View>
+
+      {/* ── 3D counter ── */}
       <Pressable
         onPress={() =>
           Alert.alert(t("teller.alert.3d.title"), t("teller.alert.3d.body"), [{ text: t("common.ok") }])
@@ -93,27 +101,9 @@ export default function TellerScreen() {
         <Feather name="chevron-right" size={18} color={colors.textTertiary} />
       </Pressable>
 
-      {/* ── Existing tellers below ── */}
-      {data.counters.length > 0 ? (
-        <>
-          <Text style={[styles.sectionLabel, { color: colors.textTertiary, marginTop: 14 }]}>
-            {t("teller.your")}
-          </Text>
-          <View style={styles.list}>
-            {data.counters.map((device) => (
-              <CollapsibleDevice key={device.id} device={device} />
-            ))}
-          </View>
-        </>
-      ) : (
-        <View style={[styles.emptyCard, { backgroundColor: colors.surface1, marginTop: 14 }]}>
-          <Feather name="cpu" size={22} color={colors.textTertiary} />
-          <Text style={[styles.emptyTitle, { color: colors.foreground }]}>{t("teller.empty.title")}</Text>
-          <Text style={[styles.emptySub, { color: colors.textSecondary }]}>
-            {t("teller.empty.sub")}
-          </Text>
-        </View>
-      )}
+      <View style={[styles.productCard, { backgroundColor: colors.surface1 }]}>
+        <Image source={counter3d} style={styles.productImage} contentFit="contain" />
+      </View>
     </ScrollView>
   );
 }
@@ -141,13 +131,14 @@ const styles = StyleSheet.create({
   optionBody: { flex: 1, gap: 2 },
   optionTitle: { fontSize: 13, fontWeight: "700" },
   optionDesc: { fontSize: 11, lineHeight: 15 },
-  list: { gap: 8 },
-  emptyCard: {
+  productCard: {
     borderRadius: 14,
-    padding: 22,
+    padding: 10,
     alignItems: "center",
-    gap: 6,
+    justifyContent: "center",
   },
-  emptyTitle: { fontSize: 14, fontWeight: "700", marginTop: 2 },
-  emptySub: { fontSize: 11, textAlign: "center", lineHeight: 16 },
+  productImage: {
+    width: "100%",
+    height: 160,
+  },
 });
