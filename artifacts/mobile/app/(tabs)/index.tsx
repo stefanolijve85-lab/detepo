@@ -21,16 +21,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { LanguagePicker } from "@/components/LanguagePicker";
 import { PeriodPicker, PeriodMode } from "@/components/PeriodPicker";
 import { PctBadge } from "@/components/PctBadge";
-import { WidgetGrid2D, GridItem } from "@/components/WidgetGrid2D";
-
-// Widget span config: 2 = full width, 1 = half width
-const SPANS: Record<string, 1 | 2> = {
-  occupancy: 2,
-  today: 2,
-  last7: 1,
-  last30: 1,
-  chart: 2,
-};
+import { DraggableWidgetList } from "@/components/DraggableWidgetList";
 
 function PeriodCard({
   label,
@@ -86,85 +77,81 @@ export default function HomeScreen() {
       ? t("home.greeting.afternoon")
       : t("home.greeting.evening");
 
-  const widgetMap = useMemo((): Record<string, React.ReactNode> => ({
-    occupancy: (
-      <View style={[styles.heroCard, { backgroundColor: colors.surface1 }]}>
-        <View style={styles.heroTop}>
-          <Text style={[styles.statLabel, { color: colors.textTertiary }]}>
-            {t("home.currentOccupancy")}
+  const draggableItems = useMemo(() => {
+    const widgetMap: Record<string, React.ReactNode> = {
+      occupancy: (
+        <View style={[styles.heroCard, { backgroundColor: colors.surface1 }]}>
+          <View style={styles.heroTop}>
+            <Text style={[styles.statLabel, { color: colors.textTertiary }]}>
+              {t("home.currentOccupancy")}
+            </Text>
+            <View style={[styles.livePill, { backgroundColor: "rgba(0,229,160,0.1)" }]}>
+              <View style={[styles.liveDot, { backgroundColor: colors.green }]} />
+              <Text style={[styles.livePillText, { color: colors.green }]}>{t("common.live")}</Text>
+            </View>
+          </View>
+          <Text style={[styles.heroValue, { color: colors.foreground }]}>{data.liveTelling}</Text>
+          <Text style={[styles.heroSub, { color: colors.textSecondary }]}>
+            {t("home.visitorsPresent")}
           </Text>
-          <View style={[styles.livePill, { backgroundColor: "rgba(0,229,160,0.1)" }]}>
-            <View style={[styles.liveDot, { backgroundColor: colors.green }]} />
-            <Text style={[styles.livePillText, { color: colors.green }]}>{t("common.live")}</Text>
+        </View>
+      ),
+      today: (
+        <View style={[styles.statCard, { backgroundColor: colors.surface1 }]}>
+          <Text style={[styles.statLabel, { color: colors.textTertiary }]}>{t("home.today")}</Text>
+          <View style={styles.statRow}>
+            <Text style={[styles.statValue, { color: colors.foreground }]}>
+              {formatNumber(data.dagTotaalIn)}
+            </Text>
+            <PctBadge
+              current={data.dagTotaalIn}
+              previous={data.yesterdayDagTotaalIn}
+              label={t("home.vsYesterday")}
+              size="md"
+            />
+          </View>
+          <View style={styles.inOutRow}>
+            <View style={styles.inOutItem}>
+              <View style={[styles.inOutDot, { backgroundColor: colors.green }]} />
+              <Text style={[styles.inOutText, { color: colors.foreground }]}>
+                {t("home.in")}: {data.dagTotaalIn}
+              </Text>
+            </View>
+            <View style={styles.inOutItem}>
+              <View style={[styles.inOutDot, { backgroundColor: "#3D8EFF" }]} />
+              <Text style={[styles.inOutText, { color: colors.foreground }]}>
+                {t("home.out")}: {data.dagTotaalOut}
+              </Text>
+            </View>
           </View>
         </View>
-        <Text style={[styles.heroValue, { color: colors.foreground }]}>{data.liveTelling}</Text>
-        <Text style={[styles.heroSub, { color: colors.textSecondary }]}>
-          {t("home.visitorsPresent")}
-        </Text>
-      </View>
-    ),
-    today: (
-      <View style={[styles.statCard, { backgroundColor: colors.surface1 }]}>
-        <Text style={[styles.statLabel, { color: colors.textTertiary }]}>{t("home.today")}</Text>
-        <View style={styles.statRow}>
-          <Text style={[styles.statValue, { color: colors.foreground }]}>
-            {formatNumber(data.dagTotaalIn)}
-          </Text>
-          <PctBadge
-            current={data.dagTotaalIn}
-            previous={data.yesterdayDagTotaalIn}
-            label={t("home.vsYesterday")}
-            size="md"
+      ),
+      periods: (
+        <View style={styles.row}>
+          <PeriodCard
+            label={t("home.last7")}
+            value={data.weekTotaal}
+            previous={data.lastWeekTotaal}
+            compareLabel={t("home.vsLastWeek")}
+            onPress={() => setPickerMode("weeks")}
+          />
+          <PeriodCard
+            label={t("home.last30")}
+            value={data.maandTotaal}
+            previous={data.lastMonthTotaal}
+            compareLabel={t("home.vsLastMonth")}
+            onPress={() => setPickerMode("months")}
           />
         </View>
-        <View style={styles.inOutRow}>
-          <View style={styles.inOutItem}>
-            <View style={[styles.inOutDot, { backgroundColor: colors.green }]} />
-            <Text style={[styles.inOutText, { color: colors.foreground }]}>
-              {t("home.in")}: {data.dagTotaalIn}
-            </Text>
-          </View>
-          <View style={styles.inOutItem}>
-            <View style={[styles.inOutDot, { backgroundColor: "#3D8EFF" }]} />
-            <Text style={[styles.inOutText, { color: colors.foreground }]}>
-              {t("home.out")}: {data.dagTotaalOut}
-            </Text>
-          </View>
-        </View>
-      </View>
-    ),
-    last7: (
-      <PeriodCard
-        label={t("home.last7")}
-        value={data.weekTotaal}
-        previous={data.lastWeekTotaal}
-        compareLabel={t("home.vsLastWeek")}
-        onPress={() => setPickerMode("weeks")}
-      />
-    ),
-    last30: (
-      <PeriodCard
-        label={t("home.last30")}
-        value={data.maandTotaal}
-        previous={data.lastMonthTotaal}
-        compareLabel={t("home.vsLastMonth")}
-        onPress={() => setPickerMode("months")}
-      />
-    ),
-    chart: <LineChart data={data.hourlyData} dailyHistory={data.dailyHistory} />,
-  }), [data, colors, t, formatNumber]);
+      ),
+      chart: <LineChart data={data.hourlyData} dailyHistory={data.dailyHistory} />,
+    };
 
-  const gridItems = useMemo((): GridItem[] =>
-    order
+    return order
       .filter((id) => id in widgetMap)
-      .map((id) => ({
-        id,
-        span: SPANS[id] ?? 2,
-        node: widgetMap[id]!,
-      })),
-    [order, widgetMap],
-  );
+      .map((id) => ({ id, node: widgetMap[id]! }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [order, data, colors, t, formatNumber]);
 
   return (
     <ScrollView
@@ -221,8 +208,7 @@ export default function HomeScreen() {
         </View>
       )}
 
-      {/* 2-column draggable grid — hold any card 0.5s to start jiggle + drag */}
-      <WidgetGrid2D items={gridItems} onReorder={setFullOrder} gap={8} />
+      <DraggableWidgetList items={draggableItems} onReorder={setFullOrder} gap={8} />
 
       {pickerMode && (
         <PeriodPicker
@@ -276,6 +262,7 @@ const styles = StyleSheet.create({
   livePillText: { fontSize: 10, fontWeight: "600" },
   heroValue: { fontSize: 52, fontWeight: "700", letterSpacing: -2, lineHeight: 58 },
   heroSub: { fontSize: 11, marginTop: 2 },
+  row: { flexDirection: "row", gap: 8 },
   statCard: { flex: 1, borderRadius: 14, padding: 14, gap: 6 },
   statLabel: { fontSize: 9, letterSpacing: 1.2, fontWeight: "500" },
   statValue: { fontSize: 36, fontWeight: "700", letterSpacing: -1, lineHeight: 40 },

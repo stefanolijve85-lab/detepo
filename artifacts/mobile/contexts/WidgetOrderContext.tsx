@@ -1,84 +1,101 @@
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import type { GridLayout } from "@/components/WidgetGrid2D";
 
-type ScreenId = "home" | "insights" | "live";
-type WidgetOrderMap = Record<ScreenId, string[]>;
+type FlatScreenId = "home" | "live";
+const FLAT_KEY = "detepo:widget_order_v3";
+const GRID_KEY = "detepo:widget_grid_v1";
 
-const STORAGE_KEY = "detepo:widget_order_v2";
-
-const DEFAULTS: WidgetOrderMap = {
-  home: ["occupancy", "today", "last7", "last30", "chart"],
-  insights: ["today_stat", "week_stat", "month_stat", "avg_stat", "live_stat", "peak_stat", "insight_chart", "insight_0", "insight_1", "insight_2", "insight_3", "insight_4"],
-  live: ["live_count", "devices"],
+// ── Flat order defaults (home uses DraggableWidgetList) ───────────────────────
+const FLAT_DEFAULTS: Record<FlatScreenId, string[]> = {
+  home: ["occupancy", "today", "periods", "chart"],
+  live: [],
 };
 
+// ── Grid layout defaults (insights uses WidgetGrid2D) ────────────────────────
+const GRID_DEFAULTS: GridLayout = [
+  ["today_stat", "week_stat"],
+  ["month_stat", "avg_stat"],
+  ["live_stat",  "peak_stat"],
+  ["insight_chart"],
+  ["insight_0"],
+  ["insight_1"],
+  ["insight_2"],
+  ["insight_3"],
+  ["insight_4"],
+];
+
 interface WidgetOrderCtx {
-  getOrder: (screen: ScreenId) => string[];
-  setOrder: (screen: ScreenId, order: string[]) => void;
-  resetOrder: (screen: ScreenId) => void;
+  getFlatOrder:    (screen: FlatScreenId) => string[];
+  setFlatOrder:    (screen: FlatScreenId, order: string[]) => void;
+  getInsightGrid:  () => GridLayout;
+  setInsightGrid:  (layout: GridLayout) => void;
 }
 
 const Ctx = createContext<WidgetOrderCtx>({
-  getOrder: (s) => DEFAULTS[s],
-  setOrder: () => {},
-  resetOrder: () => {},
+  getFlatOrder:   (s) => FLAT_DEFAULTS[s],
+  setFlatOrder:   () => {},
+  getInsightGrid: () => GRID_DEFAULTS,
+  setInsightGrid: () => {},
 });
 
 export function WidgetOrderProvider({ children }: { children: ReactNode }) {
-  const [map, setMap] = useState<WidgetOrderMap>({ ...DEFAULTS });
+  const [flatMap,   setFlatMap]   = useState<Record<FlatScreenId, string[]>>({ ...FLAT_DEFAULTS });
+  const [gridLayout, setGridLayout] = useState<GridLayout>(GRID_DEFAULTS);
 
   useEffect(() => {
-    AsyncStorage.getItem(STORAGE_KEY)
-      .then((raw) => {
-        if (raw) {
-          const parsed = JSON.parse(raw) as Partial<WidgetOrderMap>;
-          setMap((prev) => ({ ...prev, ...parsed }));
-        }
-      })
-      .catch(() => {});
+    AsyncStorage.multiGet([FLAT_KEY, GRID_KEY]).then(([[, flatRaw], [, gridRaw]]) => {
+      if (flatRaw) {
+        try { setFlatMap((p) => ({ ...p, ...JSON.parse(flatRaw) })); } catch { /* ignore */ }
+      }
+      if (gridRaw) {
+        try { setGridLayout(JSON.parse(gridRaw)); } catch { /* ignore */ }
+      }
+    });
   }, []);
 
-  const persist = useCallback((next: WidgetOrderMap) => {
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next)).catch(() => {});
+  const setFlatOrder = useCallback((screen: FlatScreenId, order: string[]) => {
+    setFlatMap((prev) => {
+      const next = { ...prev, [screen]: order };
+      AsyncStorage.setItem(FLAT_KEY, JSON.stringify(next)).catch(() => {});
+      return next;
+    });
   }, []);
 
-  const setOrder = useCallback(
-    (screen: ScreenId, order: string[]) => {
-      setMap((prev) => {
-        const next = { ...prev, [screen]: order };
-        persist(next);
-        return next;
-      });
-    },
-    [persist],
+  const setInsightGrid = useCallback((layout: GridLayout) => {
+    setGridLayout(layout);
+    AsyncStorage.setItem(GRID_KEY, JSON.stringify(layout)).catch(() => {});
+  }, []);
+
+  return (
+    <Ctx.Provider
+      value={{
+        getFlatOrder:   (s) => flatMap[s] ?? FLAT_DEFAULTS[s],
+        setFlatOrder,
+        getInsightGrid: () => gridLayout,
+        setInsightGrid,
+      }}
+    >
+      {children}
+    </Ctx.Provider>
   );
-
-  const resetOrder = useCallback(
-    (screen: ScreenId) => {
-      setMap((prev) => {
-        const next = { ...prev, [screen]: DEFAULTS[screen] };
-        persist(next);
-        return next;
-      });
-    },
-    [persist],
-  );
-
-  const getOrder = useCallback((screen: ScreenId) => map[screen] ?? DEFAULTS[screen], [map]);
-
-  return <Ctx.Provider value={{ getOrder, setOrder, resetOrder }}>{children}</Ctx.Provider>;
 }
 
-export function useWidgetOrder(screen: ScreenId) {
-  const { getOrder, setOrder, resetOrder } = useContext(Ctx);
-  const order = getOrder(screen);
+// ── Hook for home/live (DraggableWidgetList) ──────────────────────────────────
+export function useWidgetOrder(screen: FlatScreenId) {
+  const { getFlatOrder, setFlatOrder } = useContext(Ctx);
+  const order = getFlatOrder(screen);
 
   const setFullOrder = useCallback(
-    (newOrder: string[]) => setOrder(screen, newOrder),
-    [screen, setOrder],
+    (newOrder: string[]) => setFlatOrder(screen, newOrder),
+    [screen, setFlatOrder],
   );
 
-  const reset = useCallback(() => resetOrder(screen), [screen, resetOrder]);
+  return { order, setFullOrder };
+}
 
-  return { order, setFullOrder, reset };
+// ── Hook for insights (WidgetGrid2D) ──────────────────────────────────────────
+export function useInsightGrid() {
+  const { getInsightGrid, setInsightGrid } = useContext(Ctx);
+  return { layout: getInsightGrid(), setLayout: setInsightGrid };
 }
