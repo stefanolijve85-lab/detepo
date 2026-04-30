@@ -6,7 +6,7 @@ import {
   useFonts,
 } from "@expo-google-fonts/inter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Stack } from "expo-router";
+import { Stack, Redirect } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -24,14 +24,25 @@ SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
 
+// 🔥 FORCE START → BLE SCREEN
+function StartRedirect() {
+  return <Redirect href="/bluetooth-scan" />;
+}
+
 function RootLayoutNav() {
   return (
-    <Stack screenOptions={{ headerBackTitle: "Back" }}>
-      <Stack.Screen name="login" options={{ headerShown: false }} />
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="bluetooth-scan" options={{ headerShown: false, presentation: "modal" }} />
-      <Stack.Screen name="alignment-check" options={{ headerShown: false, presentation: "modal" }} />
-      <Stack.Screen name="notification-settings" options={{ headerShown: false, presentation: "modal" }} />
+    <Stack screenOptions={{ headerShown: false }}>
+      {/* 👇 force entry point */}
+      <Stack.Screen name="index" options={{ headerShown: false }} />
+
+      {/* 👇 jouw BLE scherm */}
+      <Stack.Screen name="bluetooth-scan" options={{ headerShown: false }} />
+
+      {/* overige */}
+      <Stack.Screen name="login" />
+      <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="alignment-check" options={{ presentation: "modal" }} />
+      <Stack.Screen name="notification-settings" options={{ presentation: "modal" }} />
     </Stack>
   );
 }
@@ -58,17 +69,17 @@ export default function RootLayout() {
         <QueryClientProvider client={queryClient}>
           <ThemeProvider>
             <LanguageProvider>
-            <AuthProvider>
-              <NotificationsProvider>
-                <DashboardProvider>
-                  <GestureHandlerRootView style={{ flex: 1 }}>
-                    <KeyboardProvider>
-                      <RootLayoutNav />
-                    </KeyboardProvider>
-                  </GestureHandlerRootView>
-                </DashboardProvider>
-              </NotificationsProvider>
-            </AuthProvider>
+              <AuthProvider>
+                <NotificationsProvider>
+                  <DashboardProvider>
+                    <GestureHandlerRootView style={{ flex: 1 }}>
+                      <KeyboardProvider>
+                        <RootLayoutNav />
+                      </KeyboardProvider>
+                    </GestureHandlerRootView>
+                  </DashboardProvider>
+                </NotificationsProvider>
+              </AuthProvider>
             </LanguageProvider>
           </ThemeProvider>
         </QueryClientProvider>
