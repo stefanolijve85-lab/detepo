@@ -1,30 +1,42 @@
 /**
- * WidgetGrid2D
- * ─────────────────────────────────────────────────────
- * Apple-style draggable widget grid.
+ * WidgetGrid2D — Apple-style widget grid
  *
- * • Long-press any card → ALL cards jiggle (Apple iOS home screen style)
- * • Drag the held card freely — left/right AND up/down
- * • Other cards shift in real-time to preview new position
- * • Release → snap to new slot, jiggle stops
- * • Works on real devices (uses RNGH Pan.activateAfterLongPress)
- * • 2-column grid: span=2 → full width, span=1 → half width (paired)
+ * Behaviour matches iOS home screen:
+ *  - Hold any card ~0.5s → gentle jiggle starts on ALL cards
+ *  - Drag freely (left/right AND up/down)
+ *  - Other cards slide smoothly to preview the new position (LayoutAnimation)
+ *  - Release → spring-snap to correct slot, jiggle stops
+ *
+ * Grid rules:
+ *  span=2 → full width (own row)
+ *  span=1 + span=1 → side by side (paired row)
+ *  lone span=1 → own row, half width
+ *
+ * Coord bug fix: cellLayouts are SNAPSHOTTED at drag-start and that
+ * snapshot is used for hit-testing throughout. Layout-updates during
+ * drag (caused by live preview reordering) are ignored.
  */
+
 import React, {
   useRef,
   useState,
   useCallback,
   useEffect,
-  createContext,
-  useContext,
 } from "react";
 import {
   View,
   Animated,
   StyleSheet,
   Platform,
+  LayoutAnimation,
+  UIManager,
 } from "react-native";
 import { GestureDetector, Gesture } from "react-native-gesture-handler";
+
+// Enable LayoutAnimation on Android
+if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 export interface GridItem {
   id: string;
@@ -40,61 +52,48 @@ interface Props {
 
 const ND = Platform.OS !== "web";
 
-// ── Jiggle animation context ─────────────────────────────────────────────────
-const JiggleCtx = createContext(false);
-
+// ── Jiggle card ──────────────────────────────────────────────────────────────
+// Very subtle rotation (±1.5°) matching iOS exactly.
 function JiggleCard({
   children,
-  jiggling,
+  active,
 }: {
   children: React.ReactNode;
-  jiggling: boolean;
+  active: boolean;
 }) {
   const rot = useRef(new Animated.Value(0)).current;
-  const animRef = useRef<Animated.CompositeAnimation | null>(null);
+  const loop = useRef<Animated.CompositeAnimation | null>(null);
 
   useEffect(() => {
-    if (jiggling) {
-      animRef.current = Animated.loop(
+    if (active) {
+      loop.current = Animated.loop(
         Animated.sequence([
-          Animated.timing(rot, { toValue: 2.5, duration: 80, useNativeDriver: ND }),
-          Animated.timing(rot, { toValue: -2.5, duration: 80, useNativeDriver: ND }),
-          Animated.timing(rot, { toValue: 0, duration: 80, useNativeDriver: ND }),
+          Animated.timing(rot, { toValue: 1.5, duration: 90, useNativeDriver: ND }),
+          Animated.timing(rot, { toValue: -1.5, duration: 90, useNativeDriver: ND }),
+          Animated.timing(rot, { toValue: 0, duration: 90, useNativeDriver: ND }),
         ]),
       );
-      animRef.current.start();
+      loop.current.start();
     } else {
-      animRef.current?.stop();
-      Animated.spring(rot, { toValue: 0, useNativeDriver: ND }).start();
+      loop.current?.stop();
+      Animated.spring(rot, { toValue: 0, useNativeDriver: ND, overshootClamping: true }).start();
     }
-    return () => { animRef.current?.stop(); };
-  }, [jiggling, rot]);
+    return () => { loop.current?.stop(); };
+  }, [active, rot]);
+
+  const rotStr = rot.interpolate({
+    inputRange: [-1.5, 1.5],
+    outputRange: ["-1.5deg", "1.5deg"],
+  });
 
   return (
-    <Animated.View
-      style={{
-        transform: [
-          {
-            rotate: rot.interpolate({
-              inputRange: [-2.5, 2.5],
-              outputRange: ["-2.5deg", "2.5deg"],
-            }),
-          },
-        ],
-      }}
-    >
+    <Animated.View style={{ transform: [{ rotate: rotStr }] }}>
       {children}
     </Animated.View>
   );
 }
 
-// ── Grid layout helpers ──────────────────────────────────────────────────────
-/**
- * Build rows from a flat array.
- *   span=2 → own row (full width)
- *   span=1 + span=1 → shared row
- *   lone span=1 → own row (half width, left-aligned)
- */
+// ── Grid layout helpers ───────────────────────────────────────────────────────
 function buildRows(items: GridItem[]): GridItem[][] {
   const rows: GridItem[][] = [];
   let i = 0;
@@ -114,36 +113,47 @@ function buildRows(items: GridItem[]): GridItem[][] {
   return rows;
 }
 
-function insertAt(arr: GridItem[], item: GridItem, idx: number): GridItem[] {
-  const next = [...arr];
-  next.splice(Math.max(0, Math.min(idx, arr.length)), 0, item);
+function reorder(items: GridItem[], dragId: string, rawHoverIdx: number): GridItem[] {
+  const fromIdx = items.findIndex((it) => it.id === dragId);
+  if (fromIdx === -1) return items;
+  const dragged = items[fromIdx];
+  const without = items.filter((it) => it.id !== dragId);
+  const adjHi = Math.max(0, Math.min(rawHoverIdx > fromIdx ? rawHoverIdx - 1 : rawHoverIdx, without.length));
+  const next = [...without];
+  next.splice(adjHi, 0, dragged);
   return next;
 }
 
-// ── Absolute cell layout ─────────────────────────────────────────────────────
+// ── Cell layout type ──────────────────────────────────────────────────────────
 interface CellLayout { x: number; y: number; w: number; h: number }
 
-// ── Main grid ────────────────────────────────────────────────────────────────
+// ── Main grid ─────────────────────────────────────────────────────────────────
 export function WidgetGrid2D({ items, onReorder, gap = 8 }: Props) {
   const [dragId, setDragId] = useState<string | null>(null);
-  const [jiggling, setJiggling] = useState(false);
+  const [editing, setEditing] = useState(false);      // all cards jiggle
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
 
+  // Ghost animation
   const ghostX = useRef(new Animated.Value(0)).current;
   const ghostY = useRef(new Animated.Value(0)).current;
   const ghostScale = useRef(new Animated.Value(1)).current;
   const ghostOpacity = useRef(new Animated.Value(0)).current;
 
-  // Absolute screen positions of each cell (from measureInWindow)
+  // Absolute positions of cells — only updated when NOT dragging
   const cellLayouts = useRef<Map<string, CellLayout>>(new Map());
+  // Snapshot taken at drag-start (used for hit-testing during drag)
+  const layoutSnap = useRef<Map<string, CellLayout>>(new Map());
+
   const containerRef = useRef<View>(null);
   const containerAbs = useRef({ x: 0, y: 0 });
   const touchOffset = useRef({ x: 0, y: 0 });
 
+  // Refs to avoid stale closures in gesture callbacks
   const dragIdRef = useRef<string | null>(null);
   const hoverIdxRef = useRef<number | null>(null);
   const itemsRef = useRef(items);
   itemsRef.current = items;
+  const isDraggingRef = useRef(false);
 
   const measureContainer = useCallback(() => {
     containerRef.current?.measureInWindow((x, y) => {
@@ -151,19 +161,18 @@ export function WidgetGrid2D({ items, onReorder, gap = 8 }: Props) {
     });
   }, []);
 
-  /**
-   * Find the best flat-array index to insert the dragged card.
-   * Uses absolute screen coordinates stored in cellLayouts.
-   */
+  // ── Hover index calculation (uses snapshot, not live layouts) ──────────────
   const computeHoverIdx = useCallback(
     (absGhostCX: number, absGhostCY: number, dragging: string): number => {
       const current = itemsRef.current;
+      const snap = layoutSnap.current;
+
       let bestIdx = 0;
       let bestDist = Infinity;
 
       current.forEach((item, idx) => {
         if (item.id === dragging) return;
-        const lay = cellLayouts.current.get(item.id);
+        const lay = snap.get(item.id);
         if (!lay) return;
         const cx = lay.x + lay.w / 2;
         const cy = lay.y + lay.h / 2;
@@ -175,31 +184,36 @@ export function WidgetGrid2D({ items, onReorder, gap = 8 }: Props) {
       });
 
       const bestItem = current[bestIdx];
-      const lay = bestItem ? cellLayouts.current.get(bestItem.id) : null;
+      const lay = bestItem ? snap.get(bestItem.id) : null;
       if (!lay) return bestIdx;
 
       const cx = lay.x + lay.w / 2;
       const cy = lay.y + lay.h / 2;
       const sameRow = Math.abs(absGhostCY - cy) < lay.h * 0.6;
-      if (sameRow) {
-        return absGhostCX < cx ? bestIdx : bestIdx + 1;
-      }
-      return absGhostCY < cy ? bestIdx : bestIdx + 1;
+      return sameRow
+        ? (absGhostCX < cx ? bestIdx : bestIdx + 1)
+        : (absGhostCY < cy ? bestIdx : bestIdx + 1);
     },
     [],
   );
 
+  // ── Drag lifecycle ────────────────────────────────────────────────────────
   const beginDrag = useCallback(
     (id: string, absX: number, absY: number) => {
+      isDraggingRef.current = true;
       measureContainer();
-      const lay = cellLayouts.current.get(id);
+
+      // Snapshot current layouts so they don't drift during drag
+      layoutSnap.current = new Map(cellLayouts.current);
+
+      const lay = layoutSnap.current.get(id);
       if (!lay) return;
 
       dragIdRef.current = id;
-      // Ghost starts at cell position relative to container
       const relX = lay.x - containerAbs.current.x;
       const relY = lay.y - containerAbs.current.y;
       touchOffset.current = { x: absX - lay.x, y: absY - lay.y };
+
       ghostX.setValue(relX);
       ghostY.setValue(relY);
 
@@ -207,11 +221,11 @@ export function WidgetGrid2D({ items, onReorder, gap = 8 }: Props) {
       hoverIdxRef.current = origIdx;
 
       setDragId(id);
-      setJiggling(true);
+      setEditing(true);
       setHoverIdx(origIdx);
 
       Animated.parallel([
-        Animated.spring(ghostScale, { toValue: 1.08, useNativeDriver: ND }),
+        Animated.spring(ghostScale, { toValue: 1.06, useNativeDriver: ND }),
         Animated.timing(ghostOpacity, { toValue: 1, duration: 80, useNativeDriver: ND }),
       ]).start();
     },
@@ -222,20 +236,26 @@ export function WidgetGrid2D({ items, onReorder, gap = 8 }: Props) {
     (absX: number, absY: number) => {
       const id = dragIdRef.current;
       if (!id) return;
-      const lay = cellLayouts.current.get(id);
+      const lay = layoutSnap.current.get(id);
 
-      // Ghost position relative to container
       const relX = absX - containerAbs.current.x - touchOffset.current.x;
       const relY = absY - containerAbs.current.y - touchOffset.current.y;
       ghostX.setValue(relX);
       ghostY.setValue(relY);
 
-      // Absolute center of ghost for hit-testing
       const absCX = absX - touchOffset.current.x + (lay?.w ?? 80) / 2;
       const absCY = absY - touchOffset.current.y + (lay?.h ?? 60) / 2;
       const hi = computeHoverIdx(absCX, absCY, id);
-      hoverIdxRef.current = hi;
-      setHoverIdx(hi);
+
+      if (hi !== hoverIdxRef.current) {
+        hoverIdxRef.current = hi;
+        // Animate card rearrangement (LayoutAnimation makes other cards slide)
+        LayoutAnimation.configureNext({
+          duration: 220,
+          update: { type: "spring", springDamping: 0.85 },
+        });
+        setHoverIdx(hi);
+      }
     },
     [ghostX, ghostY, computeHoverIdx],
   );
@@ -244,48 +264,43 @@ export function WidgetGrid2D({ items, onReorder, gap = 8 }: Props) {
     const id = dragIdRef.current;
     const hi = hoverIdxRef.current;
     if (!id) return;
+
     dragIdRef.current = null;
     hoverIdxRef.current = null;
+    isDraggingRef.current = false;
 
     Animated.parallel([
-      Animated.spring(ghostScale, { toValue: 1, useNativeDriver: ND }),
-      Animated.timing(ghostOpacity, { toValue: 0, duration: 80, useNativeDriver: ND }),
+      Animated.spring(ghostScale, { toValue: 1, useNativeDriver: ND, overshootClamping: true }),
+      Animated.timing(ghostOpacity, { toValue: 0, duration: 100, useNativeDriver: ND }),
     ]).start(() => {
       setDragId(null);
-      setJiggling(false);
+      setEditing(false);
       setHoverIdx(null);
     });
 
     if (id && hi !== null) {
       const current = itemsRef.current;
-      const fromIdx = current.findIndex((it) => it.id === id);
-      if (fromIdx === -1) return;
-      const dragged = current[fromIdx];
-      const without = current.filter((it) => it.id !== id);
-      const adjHi = hi > fromIdx ? hi - 1 : hi;
-      const next = insertAt(without, dragged, adjHi);
+      const next = reorder(current, id, hi);
       const newIds = next.map((it) => it.id);
-      if (JSON.stringify(newIds) !== JSON.stringify(current.map((it) => it.id))) {
+      const oldIds = current.map((it) => it.id);
+      if (JSON.stringify(newIds) !== JSON.stringify(oldIds)) {
+        LayoutAnimation.configureNext({
+          duration: 260,
+          update: { type: "spring", springDamping: 0.8 },
+        });
         onReorder(newIds);
       }
     }
   }, [ghostOpacity, ghostScale, onReorder]);
 
-  // Derive display order (preview while dragging)
-  let displayItems = items.slice();
-  if (dragId !== null && hoverIdx !== null) {
-    const fromIdx = displayItems.findIndex((it) => it.id === dragId);
-    if (fromIdx !== -1) {
-      const dragged = displayItems[fromIdx];
-      const without = displayItems.filter((it) => it.id !== dragId);
-      const adjHi = hoverIdx > fromIdx ? hoverIdx - 1 : hoverIdx;
-      displayItems = insertAt(without, dragged, adjHi);
-    }
-  }
+  // ── Build display order (live preview during drag) ────────────────────────
+  const displayItems = dragId !== null && hoverIdx !== null
+    ? reorder(items, dragId, hoverIdx)
+    : items;
 
   const rows = buildRows(displayItems);
   const draggedItem = dragId ? items.find((it) => it.id === dragId) : null;
-  const draggedLayout = dragId ? cellLayouts.current.get(dragId) : null;
+  const draggedLayout = dragId ? layoutSnap.current.get(dragId) : null;
 
   return (
     <View ref={containerRef} style={styles.container} onLayout={measureContainer}>
@@ -296,9 +311,15 @@ export function WidgetGrid2D({ items, onReorder, gap = 8 }: Props) {
               key={item.id}
               item={item}
               isDragging={item.id === dragId}
-              jiggling={jiggling && item.id !== dragId}
-              onMeasure={(x, y, w, h) => cellLayouts.current.set(item.id, { x, y, w, h })}
-              onDragStart={beginDrag}
+              jiggling={editing && item.id !== dragId}
+              isDraggingRef={isDraggingRef}
+              onMeasure={(lay) => {
+                cellLayouts.current.set(item.id, lay);
+              }}
+              onDragStart={(absX, absY) => {
+                // Re-measure right before drag to get freshest coords
+                beginDrag(item.id, absX, absY);
+              }}
               onDragMove={moveDrag}
               onDragEnd={endDrag}
             />
@@ -306,7 +327,7 @@ export function WidgetGrid2D({ items, onReorder, gap = 8 }: Props) {
         </View>
       ))}
 
-      {/* Floating ghost follows finger */}
+      {/* Floating ghost card */}
       {draggedItem && (
         <Animated.View
           pointerEvents="none"
@@ -329,13 +350,14 @@ export function WidgetGrid2D({ items, onReorder, gap = 8 }: Props) {
   );
 }
 
-// ── Grid cell ────────────────────────────────────────────────────────────────
+// ── Grid cell ──────────────────────────────────────────────────────────────
 interface GridCellProps {
   item: GridItem;
   isDragging: boolean;
   jiggling: boolean;
-  onMeasure: (x: number, y: number, w: number, h: number) => void;
-  onDragStart: (id: string, absX: number, absY: number) => void;
+  isDraggingRef: React.RefObject<boolean>;
+  onMeasure: (lay: CellLayout) => void;
+  onDragStart: (absX: number, absY: number) => void;
   onDragMove: (absX: number, absY: number) => void;
   onDragEnd: () => void;
 }
@@ -344,6 +366,7 @@ function GridCell({
   item,
   isDragging,
   jiggling,
+  isDraggingRef,
   onMeasure,
   onDragStart,
   onDragMove,
@@ -351,26 +374,26 @@ function GridCell({
 }: GridCellProps) {
   const ref = useRef<View>(null);
 
-  const measureSelf = useCallback(() => {
-    // Use measureInWindow for accurate absolute coordinates
-    ref.current?.measureInWindow((x, y, w, h) => {
-      if (w > 0 && h > 0) onMeasure(x, y, w, h);
-    });
-  }, [onMeasure]);
+  const doMeasure = useCallback(() => {
+    // Only update live layouts when NOT in the middle of a drag
+    if (!isDraggingRef.current) {
+      ref.current?.measureInWindow((x, y, w, h) => {
+        if (w > 0 && h > 0) onMeasure({ x, y, w, h });
+      });
+    }
+  }, [isDraggingRef, onMeasure]);
 
   const gesture = Gesture.Pan()
     .activateAfterLongPress(500)
     .runOnJS(true)
     .onStart((e) => {
-      // Re-measure right before drag for freshest coords
+      // Snapshot this cell right now before drag mutates the layout
       ref.current?.measureInWindow((x, y, w, h) => {
-        if (w > 0 && h > 0) onMeasure(x, y, w, h);
-        onDragStart(item.id, e.absoluteX, e.absoluteY);
+        if (w > 0 && h > 0) onMeasure({ x, y, w, h });
+        onDragStart(e.absoluteX, e.absoluteY);
       });
     })
-    .onUpdate((e) => {
-      onDragMove(e.absoluteX, e.absoluteY);
-    })
+    .onUpdate((e) => { onDragMove(e.absoluteX, e.absoluteY); })
     .onEnd(() => { onDragEnd(); })
     .onFinalize(() => { onDragEnd(); });
 
@@ -380,12 +403,12 @@ function GridCell({
         ref={ref}
         style={[
           styles.cell,
-          item.span === 2 ? styles.cellFull : styles.cellHalf,
+          item.span === 1 ? styles.cellHalf : styles.cellFull,
           isDragging && styles.cellHidden,
         ]}
-        onLayout={measureSelf}
+        onLayout={doMeasure}
       >
-        <JiggleCard jiggling={jiggling}>
+        <JiggleCard active={jiggling}>
           {!isDragging && item.node}
         </JiggleCard>
       </View>
@@ -403,9 +426,9 @@ const styles = StyleSheet.create({
   ghost: {
     position: "absolute",
     zIndex: 999,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.35,
-    shadowRadius: 20,
-    elevation: 20,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.28,
+    shadowRadius: 16,
+    elevation: 16,
   },
 });
