@@ -88,7 +88,12 @@ export function useWidgetOrder(screen: ScreenId) {
     [order, screen, setOrder],
   );
 
+  const setFullOrder = useCallback(
+    (newOrder: string[]) => setOrder(screen, newOrder),
+    [screen, setOrder],
+  );
+
   const reset = useCallback(() => resetOrder(screen), [screen, resetOrder]);
 
-  return { order, move, reset };
+  return { order, move, setFullOrder, reset };
 }

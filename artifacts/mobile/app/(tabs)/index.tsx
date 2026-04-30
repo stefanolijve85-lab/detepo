@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useMemo } from "react";
 import {
   ScrollView,
   View,
@@ -21,7 +21,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { LanguagePicker } from "@/components/LanguagePicker";
 import { PeriodPicker, PeriodMode } from "@/components/PeriodPicker";
 import { PctBadge } from "@/components/PctBadge";
-import { WidgetShell } from "@/components/WidgetShell";
+import { DraggableWidgetList } from "@/components/DraggableWidgetList";
 
 function PeriodCard({
   label,
@@ -64,10 +64,9 @@ export default function HomeScreen() {
   const { user, logout } = useAuth();
   const { t, formatNumber } = useLanguage();
   const isWeb = Platform.OS === "web";
-  const { order, move, reset } = useWidgetOrder("home");
+  const { order, setFullOrder } = useWidgetOrder("home");
 
   const [pickerMode, setPickerMode] = useState<PeriodMode | null>(null);
-  const [editMode, setEditMode] = useState(false);
 
   const now = new Date();
   const hour = now.getHours();
@@ -78,75 +77,83 @@ export default function HomeScreen() {
       ? t("home.greeting.afternoon")
       : t("home.greeting.evening");
 
-  // Build widget map
-  const widgets: Record<string, React.ReactNode> = {
-    occupancy: (
-      <View style={[styles.heroCard, { backgroundColor: colors.surface1 }]}>
-        <View style={styles.heroTop}>
-          <Text style={[styles.statLabel, { color: colors.textTertiary }]}>
-            {t("home.currentOccupancy")}
+  // Build draggable items list in the persisted order
+  const draggableItems = useMemo(() => {
+    const widgetMap: Record<string, React.ReactNode> = {
+      occupancy: (
+        <View style={[styles.heroCard, { backgroundColor: colors.surface1 }]}>
+          <View style={styles.heroTop}>
+            <Text style={[styles.statLabel, { color: colors.textTertiary }]}>
+              {t("home.currentOccupancy")}
+            </Text>
+            <View style={[styles.livePill, { backgroundColor: "rgba(0,229,160,0.1)" }]}>
+              <View style={[styles.liveDot, { backgroundColor: colors.green }]} />
+              <Text style={[styles.livePillText, { color: colors.green }]}>{t("common.live")}</Text>
+            </View>
+          </View>
+          <Text style={[styles.heroValue, { color: colors.foreground }]}>{data.liveTelling}</Text>
+          <Text style={[styles.heroSub, { color: colors.textSecondary }]}>
+            {t("home.visitorsPresent")}
           </Text>
-          <View style={[styles.livePill, { backgroundColor: "rgba(0,229,160,0.1)" }]}>
-            <View style={[styles.liveDot, { backgroundColor: colors.green }]} />
-            <Text style={[styles.livePillText, { color: colors.green }]}>{t("common.live")}</Text>
+        </View>
+      ),
+      today: (
+        <View style={[styles.statCard, { backgroundColor: colors.surface1 }]}>
+          <Text style={[styles.statLabel, { color: colors.textTertiary }]}>{t("home.today")}</Text>
+          <View style={styles.statRow}>
+            <Text style={[styles.statValue, { color: colors.foreground }]}>
+              {formatNumber(data.dagTotaalIn)}
+            </Text>
+            <PctBadge
+              current={data.dagTotaalIn}
+              previous={data.yesterdayDagTotaalIn}
+              label={t("home.vsYesterday")}
+              size="md"
+            />
+          </View>
+          <View style={styles.inOutRow}>
+            <View style={styles.inOutItem}>
+              <View style={[styles.inOutDot, { backgroundColor: colors.green }]} />
+              <Text style={[styles.inOutText, { color: colors.foreground }]}>
+                {t("home.in")}: {data.dagTotaalIn}
+              </Text>
+            </View>
+            <View style={styles.inOutItem}>
+              <View style={[styles.inOutDot, { backgroundColor: "#3D8EFF" }]} />
+              <Text style={[styles.inOutText, { color: colors.foreground }]}>
+                {t("home.out")}: {data.dagTotaalOut}
+              </Text>
+            </View>
           </View>
         </View>
-        <Text style={[styles.heroValue, { color: colors.foreground }]}>{data.liveTelling}</Text>
-        <Text style={[styles.heroSub, { color: colors.textSecondary }]}>
-          {t("home.visitorsPresent")}
-        </Text>
-      </View>
-    ),
-    today: (
-      <View style={[styles.statCard, { backgroundColor: colors.surface1 }]}>
-        <Text style={[styles.statLabel, { color: colors.textTertiary }]}>{t("home.today")}</Text>
-        <View style={styles.statRow}>
-          <Text style={[styles.statValue, { color: colors.foreground }]}>
-            {formatNumber(data.dagTotaalIn)}
-          </Text>
-          <PctBadge
-            current={data.dagTotaalIn}
-            previous={data.yesterdayDagTotaalIn}
-            label={t("home.vsYesterday")}
-            size="md"
+      ),
+      periods: (
+        <View style={styles.row}>
+          <PeriodCard
+            label={t("home.last7")}
+            value={data.weekTotaal}
+            previous={data.lastWeekTotaal}
+            compareLabel={t("home.vsLastWeek")}
+            onPress={() => setPickerMode("weeks")}
+          />
+          <PeriodCard
+            label={t("home.last30")}
+            value={data.maandTotaal}
+            previous={data.lastMonthTotaal}
+            compareLabel={t("home.vsLastMonth")}
+            onPress={() => setPickerMode("months")}
           />
         </View>
-        <View style={styles.inOutRow}>
-          <View style={styles.inOutItem}>
-            <View style={[styles.inOutDot, { backgroundColor: colors.green }]} />
-            <Text style={[styles.inOutText, { color: colors.foreground }]}>
-              {t("home.in")}: {data.dagTotaalIn}
-            </Text>
-          </View>
-          <View style={styles.inOutItem}>
-            <View style={[styles.inOutDot, { backgroundColor: "#3D8EFF" }]} />
-            <Text style={[styles.inOutText, { color: colors.foreground }]}>
-              {t("home.out")}: {data.dagTotaalOut}
-            </Text>
-          </View>
-        </View>
-      </View>
-    ),
-    periods: (
-      <View style={styles.row}>
-        <PeriodCard
-          label={t("home.last7")}
-          value={data.weekTotaal}
-          previous={data.lastWeekTotaal}
-          compareLabel={t("home.vsLastWeek")}
-          onPress={!editMode ? () => setPickerMode("weeks") : undefined}
-        />
-        <PeriodCard
-          label={t("home.last30")}
-          value={data.maandTotaal}
-          previous={data.lastMonthTotaal}
-          compareLabel={t("home.vsLastMonth")}
-          onPress={!editMode ? () => setPickerMode("months") : undefined}
-        />
-      </View>
-    ),
-    chart: <LineChart data={data.hourlyData} dailyHistory={data.dailyHistory} />,
-  };
+      ),
+      chart: <LineChart data={data.hourlyData} dailyHistory={data.dailyHistory} />,
+    };
+
+    return order
+      .filter((id) => id in widgetMap)
+      .map((id) => ({ id, node: widgetMap[id]! }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [order, data, colors, t, formatNumber]);
+
 
   return (
     <ScrollView
@@ -161,7 +168,6 @@ export default function HomeScreen() {
       refreshControl={
         <RefreshControl refreshing={loading} onRefresh={refresh} tintColor={colors.foreground} />
       }
-      scrollEnabled={!editMode}
     >
       {/* Header */}
       <View style={styles.header}>
@@ -205,52 +211,12 @@ export default function HomeScreen() {
         </View>
       )}
 
-      {/* Edit layout bar */}
-      {editMode ? (
-        <View style={[styles.editBar, { backgroundColor: colors.surface1, borderColor: colors.cyan }]}>
-          <View style={styles.editBarLeft}>
-            <Feather name="move" size={14} color={colors.cyan} />
-            <Text style={[styles.editBarText, { color: colors.cyan }]}>
-              {t("home.editLayout")}
-            </Text>
-          </View>
-          <View style={styles.editBarRight}>
-            <Pressable onPress={reset} hitSlop={6}>
-              <Text style={[styles.editBarAction, { color: colors.textTertiary }]}>
-                {t("home.resetLayout")}
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={() => setEditMode(false)}
-              style={[styles.editDoneBtn, { backgroundColor: colors.cyan }]}
-            >
-              <Text style={[styles.editDoneText, { color: "#fff" }]}>{t("home.doneEditing")}</Text>
-            </Pressable>
-          </View>
-        </View>
-      ) : (
-        <Pressable
-          onLongPress={() => setEditMode(true)}
-          delayLongPress={600}
-          style={[styles.editHint, { backgroundColor: colors.surface1 }]}
-        >
-          <Feather name="move" size={12} color={colors.textTertiary} />
-          <Text style={[styles.editHintText, { color: colors.textTertiary }]}>
-            {t("home.longPressToEdit")}
-          </Text>
-        </Pressable>
-      )}
-
-      {/* Widgets in stored order */}
-      {order.map((id) => {
-        const widget = widgets[id];
-        if (!widget) return null;
-        return (
-          <WidgetShell key={id} editMode={editMode} id={id} order={order} onMove={move}>
-            {widget}
-          </WidgetShell>
-        );
-      })}
+      {/* Widgets — long-press any card to drag & reorder */}
+      <DraggableWidgetList
+        items={draggableItems}
+        onReorder={setFullOrder}
+        gap={8}
+      />
 
       {/* Picker modal */}
       {pickerMode && (
@@ -285,7 +251,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   logoutText: { fontSize: 10, fontWeight: "600" },
-  errorBanner: { borderRadius: 10, borderWidth: 1, padding: 10 },
+  errorBanner: { borderRadius: 10, borderWidth: 1, padding: 10, marginBottom: 8 },
   errorText: { fontSize: 11, textAlign: "center" },
   heroCard: { borderRadius: 14, padding: 16, gap: 4 },
   heroTop: {
@@ -319,30 +285,4 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
-  // Edit mode
-  editBar: {
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 10,
-  },
-  editBarLeft: { flexDirection: "row", alignItems: "center", gap: 6 },
-  editBarText: { fontSize: 12, fontWeight: "700" },
-  editBarRight: { flexDirection: "row", alignItems: "center", gap: 10 },
-  editBarAction: { fontSize: 11 },
-  editDoneBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10 },
-  editDoneText: { fontSize: 12, fontWeight: "700" },
-  editHint: {
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    alignSelf: "flex-end",
-  },
-  editHintText: { fontSize: 10 },
 });

@@ -150,41 +150,46 @@ export default function LocationsScreen() {
                 >
                   {/* Location header */}
                   <View style={styles.locationHead}>
-                    <Pressable
-                      onPress={() => !isEditing && setOpenLoc((prev) => ({ ...prev, [g.originalName]: !isOpen }))}
-                      style={[styles.locHeadLeft, { flex: 1 }]}
-                    >
-                      <View
-                        style={[
-                          styles.locIcon,
-                          { backgroundColor: "rgba(61,142,255,0.12)" },
-                        ]}
-                      >
-                        <Feather name="map-pin" size={16} color={colors.blue} />
-                      </View>
+                    <View style={[styles.locIcon, { backgroundColor: "rgba(61,142,255,0.12)" }]}>
+                      <Feather name="map-pin" size={16} color={colors.blue} />
+                    </View>
 
+                    <View style={{ flex: 1 }}>
                       {isEditing ? (
-                        /* Inline edit input */
-                        <TextInput
-                          value={editValue}
-                          onChangeText={setEditValue}
-                          onBlur={commitEdit}
-                          onSubmitEditing={commitEdit}
-                          autoFocus
-                          selectTextOnFocus
-                          style={[
-                            styles.nameInput,
-                            {
-                              color: colors.foreground,
-                              borderColor: colors.cyan,
-                              backgroundColor: colors.surface2,
-                            },
-                          ]}
-                          returnKeyType="done"
-                          maxLength={40}
-                        />
+                        /* Inline name edit */
+                        <View style={styles.editRow}>
+                          <TextInput
+                            value={editValue}
+                            onChangeText={setEditValue}
+                            onBlur={commitEdit}
+                            onSubmitEditing={commitEdit}
+                            autoFocus
+                            selectTextOnFocus
+                            style={[
+                              styles.nameInput,
+                              {
+                                color: colors.foreground,
+                                borderColor: colors.cyan,
+                                backgroundColor: colors.surface2,
+                              },
+                            ]}
+                            returnKeyType="done"
+                            maxLength={40}
+                          />
+                          <Pressable onPress={cancelEdit} hitSlop={8} style={styles.editIconBtn}>
+                            <Feather name="x" size={16} color={colors.textTertiary} />
+                          </Pressable>
+                          <Pressable
+                            onPress={commitEdit}
+                            hitSlop={8}
+                            style={[styles.editIconBtn, { backgroundColor: "rgba(0,200,224,0.12)" }]}
+                          >
+                            <Feather name="check" size={16} color={colors.cyan} />
+                          </Pressable>
+                        </View>
                       ) : (
-                        <View style={{ flex: 1 }}>
+                        /* Name + rename chip */
+                        <View style={styles.nameBlock}>
                           <View style={styles.nameRow}>
                             <Text
                               style={[styles.locName, { color: colors.foreground }]}
@@ -198,49 +203,46 @@ export default function LocationsScreen() {
                               </Text>
                             )}
                           </View>
-                          <Text style={[styles.locSub, { color: colors.textTertiary }]}>
-                            {g.counters.length === 1
-                              ? t("locations.counter")
-                              : t("locations.counters", { n: g.counters.length })}
-                            {" · "}
-                            {g.onlineCount}/{g.counters.length}{" "}
-                            {t("common.online").toLowerCase()}
-                          </Text>
+                          <View style={styles.metaRow}>
+                            <Text style={[styles.locSub, { color: colors.textTertiary }]}>
+                              {g.counters.length === 1
+                                ? t("locations.counter")
+                                : t("locations.counters", { n: g.counters.length })}
+                              {" · "}
+                              {g.onlineCount}/{g.counters.length}{" "}
+                              {t("common.online").toLowerCase()}
+                            </Text>
+                            {/* Rename chip — clearly visible */}
+                            <Pressable
+                              onPress={() => startEdit(g.originalName)}
+                              style={[
+                                styles.renameChip,
+                                { backgroundColor: colors.surface2, borderColor: colors.border },
+                              ]}
+                              hitSlop={6}
+                            >
+                              <Feather name="edit-2" size={10} color={colors.textSecondary} />
+                              <Text style={[styles.renameChipText, { color: colors.textSecondary }]}>
+                                {t("locations.rename")}
+                              </Text>
+                            </Pressable>
+                          </View>
                         </View>
                       )}
-                    </Pressable>
+                    </View>
 
-                    {/* Edit / confirm / cancel buttons */}
-                    {isEditing ? (
-                      <View style={styles.editBtns}>
-                        <Pressable onPress={cancelEdit} hitSlop={8} style={styles.editActionBtn}>
-                          <Feather name="x" size={16} color={colors.textTertiary} />
-                        </Pressable>
-                        <Pressable
-                          onPress={commitEdit}
-                          hitSlop={8}
-                          style={[styles.editActionBtn, { backgroundColor: "rgba(0,200,224,0.1)" }]}
-                        >
-                          <Feather name="check" size={16} color={colors.cyan} />
-                        </Pressable>
-                      </View>
-                    ) : (
-                      <View style={styles.editBtns}>
-                        <Pressable
-                          onPress={() => startEdit(g.originalName)}
-                          hitSlop={8}
-                          style={styles.editActionBtn}
-                          accessibilityLabel={t("locations.rename")}
-                        >
-                          <Feather name="edit-2" size={14} color={colors.textTertiary} />
-                        </Pressable>
+                    {!isEditing && (
+                      <Pressable
+                        onPress={() => setOpenLoc((prev) => ({ ...prev, [g.originalName]: !isOpen }))}
+                        hitSlop={10}
+                        style={styles.chevronBtn}
+                      >
                         <Feather
                           name={isOpen ? "chevron-up" : "chevron-down"}
                           size={18}
                           color={colors.textTertiary}
-                          onPress={() => setOpenLoc((prev) => ({ ...prev, [g.originalName]: !isOpen }))}
                         />
-                      </View>
+                      </Pressable>
                     )}
                   </View>
 
@@ -278,14 +280,8 @@ const styles = StyleSheet.create({
   locationCard: { borderRadius: 14, padding: 12, gap: 10 },
   locationHead: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  locHeadLeft: {
-    flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: 10,
-    flex: 1,
   },
   locIcon: {
     width: 36,
@@ -294,11 +290,33 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
+    marginTop: 2,
   },
+  nameBlock: { gap: 4 },
   nameRow: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
   locName: { fontSize: 14, fontWeight: "700" },
   originalTag: { fontSize: 10, fontStyle: "italic" },
-  locSub: { fontSize: 11, marginTop: 2 },
+  metaRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
+  locSub: { fontSize: 11 },
+  renameChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  renameChipText: { fontSize: 10, fontWeight: "600" },
+  chevronBtn: {
+    padding: 6,
+    marginTop: -2,
+  },
+  editRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
   nameInput: {
     flex: 1,
     fontSize: 14,
@@ -309,15 +327,9 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     minHeight: 36,
   },
-  editBtns: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    flexShrink: 0,
-  },
-  editActionBtn: {
-    width: 30,
-    height: 30,
+  editIconBtn: {
+    width: 32,
+    height: 32,
     borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
