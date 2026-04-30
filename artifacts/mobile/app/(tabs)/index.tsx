@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import {
   ScrollView,
   View,
@@ -14,14 +14,12 @@ import { useColors } from "@/hooks/useColors";
 import { useDashboard } from "@/contexts/DashboardContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { useWidgetOrder } from "@/contexts/WidgetOrderContext";
 import { LiveDot } from "@/components/LiveDot";
 import { LineChart } from "@/components/LineChart";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { LanguagePicker } from "@/components/LanguagePicker";
 import { PeriodPicker, PeriodMode } from "@/components/PeriodPicker";
 import { PctBadge } from "@/components/PctBadge";
-import { DraggableWidgetList } from "@/components/DraggableWidgetList";
 
 function PeriodCard({
   label,
@@ -64,7 +62,6 @@ export default function HomeScreen() {
   const { user, logout } = useAuth();
   const { t, formatNumber } = useLanguage();
   const isWeb = Platform.OS === "web";
-  const { order, setFullOrder } = useWidgetOrder("home");
 
   const [pickerMode, setPickerMode] = useState<PeriodMode | null>(null);
 
@@ -76,82 +73,6 @@ export default function HomeScreen() {
       : hour < 18
       ? t("home.greeting.afternoon")
       : t("home.greeting.evening");
-
-  const draggableItems = useMemo(() => {
-    const widgetMap: Record<string, React.ReactNode> = {
-      occupancy: (
-        <View style={[styles.heroCard, { backgroundColor: colors.surface1 }]}>
-          <View style={styles.heroTop}>
-            <Text style={[styles.statLabel, { color: colors.textTertiary }]}>
-              {t("home.currentOccupancy")}
-            </Text>
-            <View style={[styles.livePill, { backgroundColor: "rgba(0,229,160,0.1)" }]}>
-              <View style={[styles.liveDot, { backgroundColor: colors.green }]} />
-              <Text style={[styles.livePillText, { color: colors.green }]}>{t("common.live")}</Text>
-            </View>
-          </View>
-          <Text style={[styles.heroValue, { color: colors.foreground }]}>{data.liveTelling}</Text>
-          <Text style={[styles.heroSub, { color: colors.textSecondary }]}>
-            {t("home.visitorsPresent")}
-          </Text>
-        </View>
-      ),
-      today: (
-        <View style={[styles.statCard, { backgroundColor: colors.surface1 }]}>
-          <Text style={[styles.statLabel, { color: colors.textTertiary }]}>{t("home.today")}</Text>
-          <View style={styles.statRow}>
-            <Text style={[styles.statValue, { color: colors.foreground }]}>
-              {formatNumber(data.dagTotaalIn)}
-            </Text>
-            <PctBadge
-              current={data.dagTotaalIn}
-              previous={data.yesterdayDagTotaalIn}
-              label={t("home.vsYesterday")}
-              size="md"
-            />
-          </View>
-          <View style={styles.inOutRow}>
-            <View style={styles.inOutItem}>
-              <View style={[styles.inOutDot, { backgroundColor: colors.green }]} />
-              <Text style={[styles.inOutText, { color: colors.foreground }]}>
-                {t("home.in")}: {data.dagTotaalIn}
-              </Text>
-            </View>
-            <View style={styles.inOutItem}>
-              <View style={[styles.inOutDot, { backgroundColor: "#3D8EFF" }]} />
-              <Text style={[styles.inOutText, { color: colors.foreground }]}>
-                {t("home.out")}: {data.dagTotaalOut}
-              </Text>
-            </View>
-          </View>
-        </View>
-      ),
-      periods: (
-        <View style={styles.row}>
-          <PeriodCard
-            label={t("home.last7")}
-            value={data.weekTotaal}
-            previous={data.lastWeekTotaal}
-            compareLabel={t("home.vsLastWeek")}
-            onPress={() => setPickerMode("weeks")}
-          />
-          <PeriodCard
-            label={t("home.last30")}
-            value={data.maandTotaal}
-            previous={data.lastMonthTotaal}
-            compareLabel={t("home.vsLastMonth")}
-            onPress={() => setPickerMode("months")}
-          />
-        </View>
-      ),
-      chart: <LineChart data={data.hourlyData} dailyHistory={data.dailyHistory} />,
-    };
-
-    return order
-      .filter((id) => id in widgetMap)
-      .map((id) => ({ id, node: widgetMap[id]! }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [order, data, colors, t, formatNumber]);
 
   return (
     <ScrollView
@@ -208,7 +129,73 @@ export default function HomeScreen() {
         </View>
       )}
 
-      <DraggableWidgetList items={draggableItems} onReorder={setFullOrder} gap={8} />
+      {/* Occupancy hero */}
+      <View style={[styles.heroCard, { backgroundColor: colors.surface1 }]}>
+        <View style={styles.heroTop}>
+          <Text style={[styles.statLabel, { color: colors.textTertiary }]}>
+            {t("home.currentOccupancy")}
+          </Text>
+          <View style={[styles.livePill, { backgroundColor: "rgba(0,229,160,0.1)" }]}>
+            <View style={[styles.liveDot, { backgroundColor: colors.green }]} />
+            <Text style={[styles.livePillText, { color: colors.green }]}>{t("common.live")}</Text>
+          </View>
+        </View>
+        <Text style={[styles.heroValue, { color: colors.foreground }]}>{data.liveTelling}</Text>
+        <Text style={[styles.heroSub, { color: colors.textSecondary }]}>
+          {t("home.visitorsPresent")}
+        </Text>
+      </View>
+
+      {/* Today */}
+      <View style={[styles.statCard, { backgroundColor: colors.surface1 }]}>
+        <Text style={[styles.statLabel, { color: colors.textTertiary }]}>{t("home.today")}</Text>
+        <View style={styles.statRow}>
+          <Text style={[styles.statValue, { color: colors.foreground }]}>
+            {formatNumber(data.dagTotaalIn)}
+          </Text>
+          <PctBadge
+            current={data.dagTotaalIn}
+            previous={data.yesterdayDagTotaalIn}
+            label={t("home.vsYesterday")}
+            size="md"
+          />
+        </View>
+        <View style={styles.inOutRow}>
+          <View style={styles.inOutItem}>
+            <View style={[styles.inOutDot, { backgroundColor: colors.green }]} />
+            <Text style={[styles.inOutText, { color: colors.foreground }]}>
+              {t("home.in")}: {data.dagTotaalIn}
+            </Text>
+          </View>
+          <View style={styles.inOutItem}>
+            <View style={[styles.inOutDot, { backgroundColor: "#3D8EFF" }]} />
+            <Text style={[styles.inOutText, { color: colors.foreground }]}>
+              {t("home.out")}: {data.dagTotaalOut}
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      {/* 7-day / 30-day row */}
+      <View style={styles.row}>
+        <PeriodCard
+          label={t("home.last7")}
+          value={data.weekTotaal}
+          previous={data.lastWeekTotaal}
+          compareLabel={t("home.vsLastWeek")}
+          onPress={() => setPickerMode("weeks")}
+        />
+        <PeriodCard
+          label={t("home.last30")}
+          value={data.maandTotaal}
+          previous={data.lastMonthTotaal}
+          compareLabel={t("home.vsLastMonth")}
+          onPress={() => setPickerMode("months")}
+        />
+      </View>
+
+      {/* Chart */}
+      <LineChart data={data.hourlyData} dailyHistory={data.dailyHistory} />
 
       {pickerMode && (
         <PeriodPicker

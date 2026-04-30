@@ -188,7 +188,7 @@ export default function LocationsScreen() {
                           </Pressable>
                         </View>
                       ) : (
-                        /* Name + rename chip */
+                        /* Name + sub */
                         <View style={styles.nameBlock}>
                           <View style={styles.nameRow}>
                             <Text
@@ -203,46 +203,42 @@ export default function LocationsScreen() {
                               </Text>
                             )}
                           </View>
-                          <View style={styles.metaRow}>
-                            <Text style={[styles.locSub, { color: colors.textTertiary }]}>
-                              {g.counters.length === 1
-                                ? t("locations.counter")
-                                : t("locations.counters", { n: g.counters.length })}
-                              {" · "}
-                              {g.onlineCount}/{g.counters.length}{" "}
-                              {t("common.online").toLowerCase()}
-                            </Text>
-                            {/* Rename chip — clearly visible */}
-                            <Pressable
-                              onPress={() => startEdit(g.originalName)}
-                              style={[
-                                styles.renameChip,
-                                { backgroundColor: colors.surface2, borderColor: colors.border },
-                              ]}
-                              hitSlop={6}
-                            >
-                              <Feather name="edit-2" size={10} color={colors.textSecondary} />
-                              <Text style={[styles.renameChipText, { color: colors.textSecondary }]}>
-                                {t("locations.rename")}
-                              </Text>
-                            </Pressable>
-                          </View>
+                          <Text style={[styles.locSub, { color: colors.textTertiary }]}>
+                            {g.counters.length === 1
+                              ? t("locations.counter")
+                              : t("locations.counters", { n: g.counters.length })}
+                            {" · "}
+                            {g.onlineCount}/{g.counters.length}{" "}
+                            {t("common.online").toLowerCase()}
+                          </Text>
                         </View>
                       )}
                     </View>
 
                     {!isEditing && (
-                      <Pressable
-                        onPress={() => setOpenLoc((prev) => ({ ...prev, [g.originalName]: !isOpen }))}
-                        hitSlop={10}
-                        style={styles.chevronBtn}
-                      >
-                        <Feather
-                          name={isOpen ? "chevron-up" : "chevron-down"}
-                          size={18}
-                          color={colors.textTertiary}
-                        />
-                      </Pressable>
+                      <View style={styles.headBtns}>
+                        {/* Rename button — tap pencil to give this location a custom name */}
+                        <Pressable
+                          onPress={() => startEdit(g.originalName)}
+                          hitSlop={10}
+                          style={[styles.iconBtn, { backgroundColor: colors.surface2 }]}
+                        >
+                          <Feather name="edit-2" size={15} color={colors.textSecondary} />
+                        </Pressable>
+                        <Pressable
+                          onPress={() =>
+                            setOpenLoc((prev) => ({ ...prev, [g.originalName]: !isOpen }))
+                          }
+                          hitSlop={10}
+                          style={styles.chevronBtn}
+                        >
+                          <Feather
+                            name={isOpen ? "chevron-up" : "chevron-down"}
+                            size={18}
+                            color={colors.textTertiary}
+                          />
+                        </Pressable>
+                      </View>
                     )}
                   </View>
 
@@ -308,10 +304,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   renameChipText: { fontSize: 10, fontWeight: "600" },
-  chevronBtn: {
-    padding: 6,
-    marginTop: -2,
+  headBtns: { flexDirection: "row", alignItems: "center", gap: 4, flexShrink: 0 },
+  iconBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
   },
+  chevronBtn: { padding: 6, marginTop: -2 },
   editRow: {
     flexDirection: "row",
     alignItems: "center",

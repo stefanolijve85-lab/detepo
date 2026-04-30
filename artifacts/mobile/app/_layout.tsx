@@ -19,7 +19,6 @@ import { DashboardProvider } from "@/contexts/DashboardContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { NotificationsProvider } from "@/contexts/NotificationsContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
-import { WidgetOrderProvider } from "@/contexts/WidgetOrderContext";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -61,15 +60,13 @@ export default function RootLayout() {
             <LanguageProvider>
             <AuthProvider>
               <NotificationsProvider>
-                <WidgetOrderProvider>
-              <DashboardProvider>
+                <DashboardProvider>
                   <GestureHandlerRootView style={{ flex: 1 }}>
                     <KeyboardProvider>
                       <RootLayoutNav />
                     </KeyboardProvider>
                   </GestureHandlerRootView>
                 </DashboardProvider>
-              </WidgetOrderProvider>
               </NotificationsProvider>
             </AuthProvider>
             </LanguageProvider>
