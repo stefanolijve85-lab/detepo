@@ -1,13 +1,31 @@
+import { useMemo } from "react";
 import { ScrollView, View, Text, StyleSheet, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 import { useDashboard } from "@/contexts/DashboardContext";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useWidgetOrder } from "@/contexts/WidgetOrderContext";
 import { InsightCard } from "@/components/InsightCard";
 import { LineChart } from "@/components/LineChart";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { LanguagePicker } from "@/components/LanguagePicker";
 import { PctBadge } from "@/components/PctBadge";
+import { WidgetGrid2D, GridItem } from "@/components/WidgetGrid2D";
+
+const SPANS: Record<string, 1 | 2> = {
+  today_stat: 1,
+  week_stat: 1,
+  month_stat: 1,
+  avg_stat: 1,
+  live_stat: 1,
+  peak_stat: 1,
+  insight_chart: 2,
+  insight_0: 2,
+  insight_1: 2,
+  insight_2: 2,
+  insight_3: 2,
+  insight_4: 2,
+};
 
 function StatCard({
   label,
@@ -24,18 +42,18 @@ function StatCard({
 }) {
   const colors = useColors();
   return (
-    <View style={[stylesCard.card, { backgroundColor: colors.surface1 }]}>
-      <Text style={[stylesCard.label, { color: colors.textTertiary }]} numberOfLines={1}>
+    <View style={[st.card, { backgroundColor: colors.surface1 }]}>
+      <Text style={[st.label, { color: colors.textTertiary }]} numberOfLines={1}>
         {label}
       </Text>
       <Text
-        style={[small ? stylesCard.valueSm : stylesCard.value, { color: colors.foreground }]}
+        style={[small ? st.valueSm : st.value, { color: colors.foreground }]}
         numberOfLines={1}
         adjustsFontSizeToFit
       >
         {value}
       </Text>
-      <View style={stylesCard.badgeRow}>
+      <View style={st.badgeRow}>
         {previous != null && compareLabel && typeof value === "number" ? (
           <PctBadge current={value} previous={previous} label={compareLabel} size="sm" />
         ) : (
@@ -52,6 +70,7 @@ export default function InsightsScreen() {
   const { data } = useDashboard();
   const { t, locale, formatNumber } = useLanguage();
   const isWeb = Platform.OS === "web";
+  const { order, setFullOrder } = useWidgetOrder("insights");
 
   const flowBalance = data.dagTotaalIn - data.dagTotaalOut;
   const heartbeatText = data.heartbeatOnline
@@ -59,11 +78,10 @@ export default function InsightsScreen() {
         time: data.lastUpdated.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
       })
     : t("insight.heartbeat.inactive");
-
   const offlinePart =
     data.offlineCount > 0 ? t("insight.health.offline", { n: data.offlineCount }) : t("insight.health.allOk");
 
-  const insights = [
+  const insightTexts = [
     { title: t("insight.heartbeat.title"), body: heartbeatText },
     {
       title: t("insight.flow.title"),
@@ -96,6 +114,55 @@ export default function InsightsScreen() {
     },
   ];
 
+  const widgetMap = useMemo((): Record<string, React.ReactNode> => ({
+    today_stat: (
+      <StatCard
+        label={t("insights.today")}
+        value={data.dagTotaalIn}
+        previous={data.yesterdayDagTotaalIn}
+        compareLabel={t("home.vsYesterday")}
+      />
+    ),
+    week_stat: (
+      <StatCard
+        label={t("insights.7days")}
+        value={data.weekTotaal}
+        previous={data.lastWeekTotaal}
+        compareLabel={t("insights.vsPrev")}
+      />
+    ),
+    month_stat: (
+      <StatCard
+        label={t("insights.30days")}
+        value={data.maandTotaal}
+        previous={data.lastMonthTotaal}
+        compareLabel={t("insights.vsPrev")}
+      />
+    ),
+    avg_stat: <StatCard label={t("insights.avgPerHour")} value={data.avgPerHour} />,
+    live_stat: <StatCard label={t("insights.liveNow")} value={data.liveTelling} />,
+    peak_stat: <StatCard label={t("insights.peakHour")} value={data.peakHour} small />,
+    insight_chart: <LineChart data={data.hourlyData} dailyHistory={data.dailyHistory} />,
+    ...Object.fromEntries(
+      insightTexts.map((ins, i) => [
+        `insight_${i}`,
+        <InsightCard key={ins.title} title={ins.title} body={ins.body} />,
+      ]),
+    ),
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [data, colors, t, formatNumber]);
+
+  const gridItems = useMemo((): GridItem[] =>
+    order
+      .filter((id) => id in widgetMap)
+      .map((id) => ({
+        id,
+        span: SPANS[id] ?? 2,
+        node: widgetMap[id]!,
+      })),
+    [order, widgetMap],
+  );
+
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: colors.background }]}
@@ -112,58 +179,20 @@ export default function InsightsScreen() {
         </View>
       </View>
 
-      {/* Stats row 1 */}
-      <View style={styles.row}>
-        <StatCard
-          label={t("insights.today")}
-          value={data.dagTotaalIn}
-          previous={data.yesterdayDagTotaalIn}
-          compareLabel={t("home.vsYesterday")}
-        />
-        <StatCard
-          label={t("insights.7days")}
-          value={data.weekTotaal}
-          previous={data.lastWeekTotaal}
-          compareLabel={t("insights.vsPrev")}
-        />
-        <StatCard
-          label={t("insights.30days")}
-          value={data.maandTotaal}
-          previous={data.lastMonthTotaal}
-          compareLabel={t("insights.vsPrev")}
-        />
-      </View>
-
-      {/* Stats row 2 */}
-      <View style={styles.row}>
-        <StatCard label={t("insights.avgPerHour")} value={data.avgPerHour} />
-        <StatCard label={t("insights.liveNow")} value={data.liveTelling} />
-        <StatCard label={t("insights.peakHour")} value={data.peakHour} small />
-      </View>
-
-      {/* Line chart */}
-      <LineChart data={data.hourlyData} dailyHistory={data.dailyHistory} />
-
-      {/* Insights */}
-      <Text style={[styles.sectionLabel, { color: colors.textTertiary }]}>{t("insights.aiInsights")}</Text>
-      {insights.map((insight) => (
-        <InsightCard key={insight.title} title={insight.title} body={insight.body} />
-      ))}
+      <WidgetGrid2D items={gridItems} onReorder={setFullOrder} gap={8} />
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { padding: 16, gap: 10 },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  content: { padding: 16, gap: 8 },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 },
   title: { fontSize: 22, fontWeight: "700", letterSpacing: -0.4 },
   headerActions: { flexDirection: "row", alignItems: "center", gap: 6 },
-  row: { flexDirection: "row", gap: 8 },
-  sectionLabel: { fontSize: 9, letterSpacing: 1.5, fontWeight: "500", marginTop: 4 },
 });
 
-const stylesCard = StyleSheet.create({
+const st = StyleSheet.create({
   card: { flex: 1, borderRadius: 14, padding: 12, gap: 4, minHeight: 92 },
   label: { fontSize: 9, letterSpacing: 1.0, fontWeight: "500" },
   value: { fontSize: 24, fontWeight: "700", letterSpacing: -0.5 },

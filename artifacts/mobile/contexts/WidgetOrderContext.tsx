@@ -2,15 +2,13 @@ import { createContext, useContext, useEffect, useState, useCallback, ReactNode 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 type ScreenId = "home" | "insights" | "live";
-
 type WidgetOrderMap = Record<ScreenId, string[]>;
 
-const STORAGE_KEY = "detepo:widget_order";
+const STORAGE_KEY = "detepo:widget_order_v2";
 
-// Default widget orderings per screen
 const DEFAULTS: WidgetOrderMap = {
-  home: ["occupancy", "today", "periods", "chart"],
-  insights: ["summary", "devices", "peakhour"],
+  home: ["occupancy", "today", "last7", "last30", "chart"],
+  insights: ["today_stat", "week_stat", "month_stat", "avg_stat", "live_stat", "peak_stat", "insight_chart", "insight_0", "insight_1", "insight_2", "insight_3", "insight_4"],
   live: ["live_count", "devices"],
 };
 
@@ -75,19 +73,6 @@ export function useWidgetOrder(screen: ScreenId) {
   const { getOrder, setOrder, resetOrder } = useContext(Ctx);
   const order = getOrder(screen);
 
-  const move = useCallback(
-    (id: string, direction: "up" | "down") => {
-      const idx = order.indexOf(id);
-      if (idx === -1) return;
-      const next = [...order];
-      const swapIdx = direction === "up" ? idx - 1 : idx + 1;
-      if (swapIdx < 0 || swapIdx >= next.length) return;
-      [next[idx], next[swapIdx]] = [next[swapIdx], next[idx]];
-      setOrder(screen, next);
-    },
-    [order, screen, setOrder],
-  );
-
   const setFullOrder = useCallback(
     (newOrder: string[]) => setOrder(screen, newOrder),
     [screen, setOrder],
@@ -95,5 +80,5 @@ export function useWidgetOrder(screen: ScreenId) {
 
   const reset = useCallback(() => resetOrder(screen), [screen, resetOrder]);
 
-  return { order, move, setFullOrder, reset };
+  return { order, setFullOrder, reset };
 }
