@@ -1,0 +1,15 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "12f25653-9843-47cc-a0b4-e60b671bd182"
+      }
+    },
+    "ios": {
+      "bundleIdentifier": "com.detepo.workspace",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    }
+  }
+}

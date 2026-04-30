@@ -57,7 +57,6 @@ export function LineChart({ data, dailyHistory = [] }: LineChartProps) {
 
   const points: Point[] = useMemo(() => {
     if (mode === "day") {
-      // Build full 24h with zeros for missing
       const byHour = new Map<number, { inCount: number; outCount: number }>();
       data.forEach((d) => {
         const h = parseInt(d.hour, 10);
@@ -83,7 +82,6 @@ export function LineChart({ data, dailyHistory = [] }: LineChartProps) {
           label = date.toLocaleDateString(locale, { weekday: "short" });
           fullLabel = date.toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "short" });
         } else {
-          // month: show every ~5th label
           const dd = date.getDate();
           label = i % 5 === 0 || i === slice.length - 1 ? String(dd) : "";
           fullLabel = date.toLocaleDateString(locale, { day: "numeric", month: "short" });
@@ -114,19 +112,12 @@ export function LineChart({ data, dailyHistory = [] }: LineChartProps) {
       ? t("chart.titleWeek")
       : t("chart.titleMonth");
 
-  // PanResponder for scrubbing
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
-      onPanResponderGrant: (e) => {
-        const x = e.nativeEvent.locationX;
-        updateScrub(x);
-      },
-      onPanResponderMove: (e) => {
-        const x = e.nativeEvent.locationX;
-        updateScrub(x);
-      },
+      onPanResponderGrant: (e) => updateScrub(e.nativeEvent.locationX),
+      onPanResponderMove: (e) => updateScrub(e.nativeEvent.locationX),
       onPanResponderRelease: () => setScrubIndex(null),
       onPanResponderTerminate: () => setScrubIndex(null),
     }),
@@ -141,8 +132,7 @@ export function LineChart({ data, dailyHistory = [] }: LineChartProps) {
     const total = pointsCountRef.current;
     if (total === 0) return;
     const idx = Math.round(ratio * (total - 1));
-    const clamped = Math.max(0, Math.min(total - 1, idx));
-    setScrubIndex(clamped);
+    setScrubIndex(Math.max(0, Math.min(total - 1, idx)));
   }
 
   const onLayout = (e: LayoutChangeEvent) => {
@@ -153,6 +143,11 @@ export function LineChart({ data, dailyHistory = [] }: LineChartProps) {
 
   const scrubPoint = scrubIndex !== null ? points[scrubIndex] : null;
   const scrubX = scrubIndex !== null ? xFor(scrubIndex, points.length) : 0;
+
+  // Determine if the scrubber line is in the left or right half to pin the
+  // indicator accordingly (avoids running off-screen)
+  const scrubXPx = scrubIndex !== null ? (scrubX / CHART_W) * chartWidth : 0;
+  const tooltipLeft = Math.max(4, Math.min(chartWidth - 120, scrubXPx - 60));
 
   return (
     <View style={[styles.card, { backgroundColor: colors.surface1 }]}>
@@ -177,10 +172,7 @@ export function LineChart({ data, dailyHistory = [] }: LineChartProps) {
                 setMode(m);
                 setScrubIndex(null);
               }}
-              style={[
-                styles.tab,
-                active && { backgroundColor: colors.surface1 },
-              ]}
+              style={[styles.tab, active && { backgroundColor: colors.surface1 }]}
             >
               <Text
                 style={[
@@ -196,16 +188,41 @@ export function LineChart({ data, dailyHistory = [] }: LineChartProps) {
         })}
       </View>
 
-      {/* Legend */}
-      <View style={styles.legend}>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendSwatch, { backgroundColor: COLOR_IN }]} />
-          <Text style={[styles.legendText, { color: colors.textSecondary }]}>{t("chart.in")}</Text>
-        </View>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendSwatch, { backgroundColor: COLOR_OUT }]} />
-          <Text style={[styles.legendText, { color: colors.textSecondary }]}>{t("chart.out")}</Text>
-        </View>
+      {/* ── Scrub info strip (always above SVG so finger never covers it) ── */}
+      <View style={[styles.scrubStrip, { minHeight: 32 }]}>
+        {scrubPoint ? (
+          <>
+            <Text style={[styles.scrubLabel, { color: colors.textTertiary }]} numberOfLines={1}>
+              {scrubPoint.fullLabel}
+            </Text>
+            <View style={styles.scrubValues}>
+              <View style={styles.scrubItem}>
+                <View style={[styles.scrubDot, { backgroundColor: COLOR_IN }]} />
+                <Text style={[styles.scrubVal, { color: colors.foreground }]}>
+                  {t("chart.in")}: <Text style={{ fontWeight: "700" }}>{scrubPoint.inCount}</Text>
+                </Text>
+              </View>
+              <View style={styles.scrubItem}>
+                <View style={[styles.scrubDot, { backgroundColor: COLOR_OUT }]} />
+                <Text style={[styles.scrubVal, { color: colors.foreground }]}>
+                  {t("chart.out")}: <Text style={{ fontWeight: "700" }}>{scrubPoint.outCount}</Text>
+                </Text>
+              </View>
+            </View>
+          </>
+        ) : (
+          /* Legend shown when not scrubbing */
+          <View style={styles.legend}>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendSwatch, { backgroundColor: COLOR_IN }]} />
+              <Text style={[styles.legendText, { color: colors.textSecondary }]}>{t("chart.in")}</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendSwatch, { backgroundColor: COLOR_OUT }]} />
+              <Text style={[styles.legendText, { color: colors.textSecondary }]}>{t("chart.out")}</Text>
+            </View>
+          </View>
+        )}
       </View>
 
       {/* Chart with touch */}
@@ -239,21 +256,8 @@ export function LineChart({ data, dailyHistory = [] }: LineChartProps) {
 
           {!hasData ? (
             <>
-              <Path
-                d={`M ${PAD_L} ${PAD_T + INNER_H} L ${CHART_W - PAD_R} ${PAD_T + INNER_H}`}
-                stroke={COLOR_IN}
-                strokeWidth={1.5}
-                fill="none"
-                opacity={0.3}
-              />
-              <Path
-                d={`M ${PAD_L} ${PAD_T + INNER_H} L ${CHART_W - PAD_R} ${PAD_T + INNER_H}`}
-                stroke={COLOR_OUT}
-                strokeWidth={1.5}
-                fill="none"
-                opacity={0.3}
-                strokeDasharray="4,3"
-              />
+              <Path d={`M ${PAD_L} ${PAD_T + INNER_H} L ${CHART_W - PAD_R} ${PAD_T + INNER_H}`} stroke={COLOR_IN} strokeWidth={1.5} fill="none" opacity={0.3} />
+              <Path d={`M ${PAD_L} ${PAD_T + INNER_H} L ${CHART_W - PAD_R} ${PAD_T + INNER_H}`} stroke={COLOR_OUT} strokeWidth={1.5} fill="none" opacity={0.3} strokeDasharray="4,3" />
             </>
           ) : (
             <>
@@ -272,7 +276,6 @@ export function LineChart({ data, dailyHistory = [] }: LineChartProps) {
                 </>
               ) : null}
 
-              {/* Data points (visible markers only on smaller series for readability) */}
               {points.length <= 24 &&
                 inPts.map((p, i) =>
                   points[i].inCount > 0 ? (
@@ -300,59 +303,32 @@ export function LineChart({ data, dailyHistory = [] }: LineChartProps) {
             );
           })}
 
-          {/* Scrubber */}
+          {/* Scrubber line + dots */}
           {scrubIndex !== null && scrubPoint && (
             <>
-              <Line
-                x1={scrubX}
-                y1={PAD_T}
-                x2={scrubX}
-                y2={PAD_T + INNER_H}
-                stroke={colors.foreground}
-                strokeWidth={1}
-                strokeDasharray="3,3"
-                opacity={0.5}
-              />
-              <Circle cx={scrubX} cy={yFor(scrubPoint.inCount, maxVal)} r={4} fill={COLOR_IN} stroke={colors.surface1} strokeWidth={1.5} />
-              <Circle cx={scrubX} cy={yFor(scrubPoint.outCount, maxVal)} r={4} fill={COLOR_OUT} stroke={colors.surface1} strokeWidth={1.5} />
+              <Line x1={scrubX} y1={PAD_T} x2={scrubX} y2={PAD_T + INNER_H} stroke={colors.foreground} strokeWidth={1} strokeDasharray="3,3" opacity={0.5} />
+              <Circle cx={scrubX} cy={yFor(scrubPoint.inCount, maxVal)} r={5} fill={COLOR_IN} stroke={colors.surface1} strokeWidth={2} />
+              <Circle cx={scrubX} cy={yFor(scrubPoint.outCount, maxVal)} r={5} fill={COLOR_OUT} stroke={colors.surface1} strokeWidth={2} />
             </>
           )}
         </Svg>
 
-        {/* Tooltip overlay (HTML, follows scrub position) */}
+        {/* Vertical position hint — a faint pill at the bottom of the scrub line */}
         {scrubIndex !== null && scrubPoint && (
           <View
             pointerEvents="none"
             style={[
-              styles.tooltip,
+              styles.scrubPill,
               {
+                left: tooltipLeft,
                 backgroundColor: colors.surface2,
                 borderColor: colors.border,
-                left: Math.max(
-                  4,
-                  Math.min(
-                    chartWidth - 120,
-                    (scrubX / CHART_W) * chartWidth - 60,
-                  ),
-                ),
               },
             ]}
           >
-            <Text style={[styles.tooltipLabel, { color: colors.textTertiary }]} numberOfLines={1}>
+            <Text style={[styles.scrubPillText, { color: colors.textTertiary }]} numberOfLines={1}>
               {scrubPoint.fullLabel}
             </Text>
-            <View style={styles.tooltipRow}>
-              <View style={[styles.tooltipDot, { backgroundColor: COLOR_IN }]} />
-              <Text style={[styles.tooltipText, { color: colors.foreground }]}>
-                {t("chart.in")}: {scrubPoint.inCount}
-              </Text>
-            </View>
-            <View style={styles.tooltipRow}>
-              <View style={[styles.tooltipDot, { backgroundColor: COLOR_OUT }]} />
-              <Text style={[styles.tooltipText, { color: colors.foreground }]}>
-                {t("chart.out")}: {scrubPoint.outCount}
-              </Text>
-            </View>
           </View>
         )}
       </View>
@@ -380,23 +356,32 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   tabText: { fontSize: 11, fontWeight: "500" },
-  legend: { flexDirection: "row", gap: 14 },
+  // Scrub info strip replaces the old floating tooltip
+  scrubStrip: {
+    flexDirection: "column",
+    justifyContent: "center",
+    gap: 2,
+    minHeight: 32,
+  },
+  scrubLabel: { fontSize: 10, fontWeight: "600", letterSpacing: 0.4 },
+  scrubValues: { flexDirection: "row", gap: 14 },
+  scrubItem: { flexDirection: "row", alignItems: "center", gap: 5 },
+  scrubDot: { width: 7, height: 7, borderRadius: 3.5 },
+  scrubVal: { fontSize: 12 },
+  // Legend (shown when not scrubbing, same height as scrub strip)
+  legend: { flexDirection: "row", gap: 14, alignItems: "center", flex: 1 },
   legendItem: { flexDirection: "row", alignItems: "center", gap: 6 },
   legendSwatch: { width: 18, height: 3, borderRadius: 2 },
   legendText: { fontSize: 10 },
   chartWrap: { height: CHART_H, position: "relative" },
-  tooltip: {
+  // Subtle pill at the bottom of the scrub line (just shows the label)
+  scrubPill: {
     position: "absolute",
-    top: 4,
-    width: 120,
-    borderRadius: 8,
+    bottom: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
     borderWidth: 1,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    gap: 2,
   },
-  tooltipLabel: { fontSize: 9, fontWeight: "600", letterSpacing: 0.5 },
-  tooltipRow: { flexDirection: "row", alignItems: "center", gap: 5 },
-  tooltipDot: { width: 7, height: 7, borderRadius: 3.5 },
-  tooltipText: { fontSize: 11, fontWeight: "600" },
+  scrubPillText: { fontSize: 8, fontWeight: "600" },
 });

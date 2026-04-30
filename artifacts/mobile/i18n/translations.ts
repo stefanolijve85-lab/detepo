@@ -33,7 +33,6 @@ export const MONTHS: Record<Language, string[]> = {
 type Dict = Record<string, string>;
 
 const nl: Dict = {
-  // Tabs
   "tab.home": "Home",
   "tab.insights": "Inzichten",
   "tab.locations": "Locaties",
@@ -45,7 +44,6 @@ const nl: Dict = {
   "locations.empty.sub": "Voeg een teller toe via het +Teller tabblad om locaties te zien.",
   "locations.counters": "{n} tellers",
   "locations.counter": "1 teller",
-  // Common
   "common.live": "Live",
   "common.online": "Online",
   "common.offline": "Offline",
@@ -57,10 +55,8 @@ const nl: Dict = {
   "common.ok": "OK",
   "common.yes": "Ja",
   "common.no": "Nee",
-  // Language picker
   "lang.title": "Taal",
   "lang.choose": "Taal kiezen",
-  // Login
   "login.subtitle": "Log in met dezelfde gegevens als op het Detepo dashboard.",
   "login.email": "E-mailadres",
   "login.password": "Wachtwoord",
@@ -70,7 +66,6 @@ const nl: Dict = {
   "login.errorRequired": "Vul je e-mailadres en wachtwoord in.",
   "login.errorGeneric": "Inloggen mislukt.",
   "login.connection": "Verbinding",
-  // Home
   "home.greeting.morning": "GOEDEMORGEN",
   "home.greeting.afternoon": "GOEDEMIDDAG",
   "home.greeting.evening": "GOEDENAVOND",
@@ -86,7 +81,6 @@ const nl: Dict = {
   "home.vsYesterday": "vs gisteren",
   "home.vsLastWeek": "vs vorige week",
   "home.vsLastMonth": "vs vorige maand",
-  // Insights
   "insights.title": "Inzichten",
   "insights.today": "VANDAAG",
   "insights.7days": "7 DAGEN",
@@ -111,7 +105,6 @@ const nl: Dict = {
   "insight.health.summary": "{online} van {total} tellers online.",
   "insight.health.offline": "{n} offline — controleer voeding en verbinding.",
   "insight.health.allOk": "Alle tellers bereikbaar.",
-  // Teller
   "teller.title": "Tellers",
   "teller.subtitle.empty": "Nog geen tellers gekoppeld",
   "teller.subtitle.status": "{online} online · {offline} offline",
@@ -125,23 +118,19 @@ const nl: Dict = {
   "teller.empty.sub": "Voeg hierboven je eerste teller toe.",
   "teller.alert.3d.title": "3D teller toevoegen",
   "teller.alert.3d.body": "De 3D teller verbindt direct met je WiFi-netwerk. Volg de instructies in de meegeleverde handleiding om de teller te koppelen aan je dashboard.",
-  // Device card
   "device.todayIn": "IN VANDAAG",
   "device.todayOut": "UIT VANDAAG",
   "device.battery": "BATTERIJ",
   "device.firmware": "Firmware",
   "device.heartbeat": "Heartbeat",
-  // Alerts
   "alerts.title": "Meldingen",
   "alerts.filter.all": "Alle",
   "alerts.filter.errors": "Fouten",
   "alerts.filter.warnings": "Waarschuwingen",
   "alerts.filter.info": "Info",
   "alerts.empty": "Geen meldingen",
-  // Theme
   "theme.toLight": "Schakel naar lichte modus",
   "theme.toDark": "Schakel naar donkere modus",
-  // Period picker
   "period.weeks": "Laatste 52 weken",
   "period.months": "Laatste 12 maanden",
   "period.tip": "Tik op een periode om het totaal op te halen vanaf het dashboard.",
@@ -149,7 +138,6 @@ const nl: Dict = {
   "period.weekN": "Week {n} · {y}",
   "period.thisMonth": "Deze maand ({m})",
   "period.monthY": "{m} {y}",
-  // Chart
   "chart.title": "UURLIJKSE STROOM — VANDAAG",
   "chart.in": "Ingang",
   "chart.out": "Uitgang",
@@ -159,7 +147,6 @@ const nl: Dict = {
   "chart.tab.day": "Dag",
   "chart.tab.week": "Week",
   "chart.tab.month": "Maand",
-  // Bluetooth pairing
   "ble.headerTitle": "Teller verbinden",
   "ble.headerSub": "Bluetooth LE koppelen",
   "ble.steps.scan": "Zoeken",
@@ -204,7 +191,6 @@ const nl: Dict = {
   "ble.done.title": "Teller gekoppeld!",
   "ble.done.body": "{name} is geconfigureerd en verbindt nu met het Detepo dashboard. Dit kan tot 30 seconden duren.",
   "ble.error.title": "Koppelen mislukt",
-  // Errors
   "error.title": "Er is iets misgegaan",
   "error.body": "Herlaad de app om door te gaan.",
   "error.tryAgain": "Opnieuw proberen",
@@ -213,9 +199,9 @@ const nl: Dict = {
   "device.checkAlignment": "Uitlijning",
   "signal.quality.excellent": "Uitstekend",
   "signal.quality.good": "Goed",
-  "signal.quality.fair": "Redelijk",
+  "signal.quality.fair": "Matig",
   "signal.quality.poor": "Zwak",
-  "signal.quality.none": "Geen signaal",
+  "signal.quality.none": "Onbekend",
   "ble.done.checkAlignment": "Signaal & uitlijning controleren",
   "alignment.title": "Signaal & uitlijning",
   "alignment.unknownDevice": "Onbekende teller",
@@ -259,9 +245,15 @@ const nl: Dict = {
   "notifSettings.alignment.title": "Slechte uitlijning",
   "notifSettings.alignment.sub": "Krijg een melding wanneer een teller niet goed gericht lijkt.",
   "notifSettings.footnote": "Meldingen verschijnen in dit scherm zodra een drempel wordt bereikt.",
+  "home.longPressToEdit": "Houd ingedrukt om lay-out te bewerken",
+  "home.editLayout": "Lay-out bewerken",
+  "home.resetLayout": "Resetten",
+  "home.doneEditing": "Gereed",
+  "locations.rename": "Naam wijzigen",
 };
 
 const en: Dict = {
+
   "tab.home": "Home",
   "tab.insights": "Insights",
   "tab.locations": "Locations",
@@ -429,8 +421,8 @@ const en: Dict = {
   "signal.quality.excellent": "Excellent",
   "signal.quality.good": "Good",
   "signal.quality.fair": "Fair",
-  "signal.quality.poor": "Weak",
-  "signal.quality.none": "No signal",
+  "signal.quality.poor": "Poor",
+  "signal.quality.none": "Unknown",
   "ble.done.checkAlignment": "Check signal & alignment",
   "alignment.title": "Signal & alignment",
   "alignment.unknownDevice": "Unknown counter",
@@ -474,9 +466,15 @@ const en: Dict = {
   "notifSettings.alignment.title": "Poor alignment",
   "notifSettings.alignment.sub": "Get notified when a counter looks misaligned.",
   "notifSettings.footnote": "Alerts appear in this screen as soon as a threshold is met.",
+  "home.longPressToEdit": "Hold to rearrange widgets",
+  "home.editLayout": "Edit layout",
+  "home.resetLayout": "Reset",
+  "home.doneEditing": "Done",
+  "locations.rename": "Rename location",
 };
 
 const de: Dict = {
+
   "tab.home": "Start",
   "tab.insights": "Einblicke",
   "tab.locations": "Standorte",
@@ -641,11 +639,11 @@ const de: Dict = {
   "error.detailsTitle": "Fehlerdetails",
   "device.wifiSignal": "WiFi-Signal",
   "device.checkAlignment": "Ausrichtung",
-  "signal.quality.excellent": "Hervorragend",
+  "signal.quality.excellent": "Ausgezeichnet",
   "signal.quality.good": "Gut",
-  "signal.quality.fair": "Mittel",
+  "signal.quality.fair": "Mäßig",
   "signal.quality.poor": "Schwach",
-  "signal.quality.none": "Kein Signal",
+  "signal.quality.none": "Unbekannt",
   "ble.done.checkAlignment": "Signal & Ausrichtung prüfen",
   "alignment.title": "Signal & Ausrichtung",
   "alignment.unknownDevice": "Unbekannter Zähler",
@@ -689,9 +687,15 @@ const de: Dict = {
   "notifSettings.alignment.title": "Schlechte Ausrichtung",
   "notifSettings.alignment.sub": "Benachrichtigung, wenn ein Zähler schlecht ausgerichtet erscheint.",
   "notifSettings.footnote": "Benachrichtigungen erscheinen hier, sobald ein Schwellwert erreicht wird.",
+  "home.longPressToEdit": "Gedrückt halten, um Layout zu bearbeiten",
+  "home.editLayout": "Layout bearbeiten",
+  "home.resetLayout": "Zurücksetzen",
+  "home.doneEditing": "Fertig",
+  "locations.rename": "Umbenennen",
 };
 
 const es: Dict = {
+
   "tab.home": "Inicio",
   "tab.insights": "Análisis",
   "tab.locations": "Ubicaciones",
@@ -857,10 +861,10 @@ const es: Dict = {
   "device.wifiSignal": "Señal WiFi",
   "device.checkAlignment": "Alineación",
   "signal.quality.excellent": "Excelente",
-  "signal.quality.good": "Buena",
+  "signal.quality.good": "Bueno",
   "signal.quality.fair": "Regular",
   "signal.quality.poor": "Débil",
-  "signal.quality.none": "Sin señal",
+  "signal.quality.none": "Desconocido",
   "ble.done.checkAlignment": "Comprobar señal y alineación",
   "alignment.title": "Señal y alineación",
   "alignment.unknownDevice": "Contador desconocido",
@@ -904,9 +908,15 @@ const es: Dict = {
   "notifSettings.alignment.title": "Mala alineación",
   "notifSettings.alignment.sub": "Recibe un aviso cuando un contador parezca mal alineado.",
   "notifSettings.footnote": "Los avisos aparecen aquí en cuanto se alcance un umbral.",
+  "home.longPressToEdit": "Mantén pulsado para reorganizar",
+  "home.editLayout": "Editar diseño",
+  "home.resetLayout": "Restablecer",
+  "home.doneEditing": "Listo",
+  "locations.rename": "Renombrar ubicación",
 };
 
 const it: Dict = {
+
   "tab.home": "Home",
   "tab.insights": "Analisi",
   "tab.locations": "Sedi",
@@ -1075,7 +1085,7 @@ const it: Dict = {
   "signal.quality.good": "Buono",
   "signal.quality.fair": "Discreto",
   "signal.quality.poor": "Debole",
-  "signal.quality.none": "Nessun segnale",
+  "signal.quality.none": "Sconosciuto",
   "ble.done.checkAlignment": "Verifica segnale e allineamento",
   "alignment.title": "Segnale e allineamento",
   "alignment.unknownDevice": "Contatore sconosciuto",
@@ -1119,9 +1129,15 @@ const it: Dict = {
   "notifSettings.alignment.title": "Allineamento scarso",
   "notifSettings.alignment.sub": "Ricevi un avviso quando un contatore sembra mal allineato.",
   "notifSettings.footnote": "Gli avvisi appaiono qui non appena viene raggiunta una soglia.",
+  "home.longPressToEdit": "Tieni premuto per riorganizzare",
+  "home.editLayout": "Modifica layout",
+  "home.resetLayout": "Reimposta",
+  "home.doneEditing": "Fatto",
+  "locations.rename": "Rinomina posizione",
 };
 
 const fr: Dict = {
+
   "tab.home": "Accueil",
   "tab.insights": "Analyses",
   "tab.locations": "Emplacements",
@@ -1288,9 +1304,9 @@ const fr: Dict = {
   "device.checkAlignment": "Alignement",
   "signal.quality.excellent": "Excellent",
   "signal.quality.good": "Bon",
-  "signal.quality.fair": "Moyen",
+  "signal.quality.fair": "Passable",
   "signal.quality.poor": "Faible",
-  "signal.quality.none": "Pas de signal",
+  "signal.quality.none": "Inconnu",
   "ble.done.checkAlignment": "Vérifier signal et alignement",
   "alignment.title": "Signal et alignement",
   "alignment.unknownDevice": "Compteur inconnu",
@@ -1334,9 +1350,15 @@ const fr: Dict = {
   "notifSettings.alignment.title": "Mauvais alignement",
   "notifSettings.alignment.sub": "Soyez averti lorsqu'un compteur semble mal aligné.",
   "notifSettings.footnote": "Les alertes apparaissent ici dès qu'un seuil est atteint.",
+  "home.longPressToEdit": "Appui long pour réorganiser",
+  "home.editLayout": "Modifier la mise en page",
+  "home.resetLayout": "Réinitialiser",
+  "home.doneEditing": "Terminé",
+  "locations.rename": "Renommer l'emplacement",
 };
 
 const pt: Dict = {
+
   "tab.home": "Início",
   "tab.insights": "Análises",
   "tab.locations": "Localizações",
@@ -1505,7 +1527,7 @@ const pt: Dict = {
   "signal.quality.good": "Bom",
   "signal.quality.fair": "Razoável",
   "signal.quality.poor": "Fraco",
-  "signal.quality.none": "Sem sinal",
+  "signal.quality.none": "Desconhecido",
   "ble.done.checkAlignment": "Verificar sinal e alinhamento",
   "alignment.title": "Sinal e alinhamento",
   "alignment.unknownDevice": "Contador desconhecido",
@@ -1549,6 +1571,11 @@ const pt: Dict = {
   "notifSettings.alignment.title": "Mau alinhamento",
   "notifSettings.alignment.sub": "Recebe um alerta quando um contador parecer mal alinhado.",
   "notifSettings.footnote": "Os alertas aparecem aqui assim que um limite for atingido.",
+  "home.longPressToEdit": "Manter pressionado para reorganizar",
+  "home.editLayout": "Editar layout",
+  "home.resetLayout": "Repor",
+  "home.doneEditing": "Pronto",
+  "locations.rename": "Renomear localização",
 };
 
 export const TRANSLATIONS: Record<Language, Dict> = { nl, en, de, es, it, fr, pt };
