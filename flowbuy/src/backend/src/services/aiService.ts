@@ -268,14 +268,16 @@ function mockOrchestrate(input: OrchestratorInput): AIResponse {
   const isCold = input.context.weather.temperatureC < 8;
   const isHot = input.context.weather.temperatureC > 25;
 
-  // Score each candidate against the context. Highest score wins.
+  // Score each candidate against the context. Higher rating ⇒ higher base
+  // confidence; contextual tags add a bonus on top. Baseline is calibrated
+  // so a 4.5★ product clears the 70% floor even when weather is neutral.
   const scored = eligible.map((p) => {
     const tags = (p.metadata.tags ?? []).map((t) => t.toLowerCase());
-    let score = (p.metadata.rating ?? 3.5) * 10;
-    if (isRainy && tags.includes("rain")) score += 35;
-    if (isCold && tags.includes("warm")) score += 25;
-    if (isHot && tags.includes("cooling")) score += 25;
-    if (p.price < input.budgetLimit * 0.5) score += 5;
+    let score = 20 + (p.metadata.rating ?? 3.5) * 12;
+    if (isRainy && tags.includes("rain")) score += 18;
+    if (isCold && tags.includes("warm")) score += 14;
+    if (isHot && tags.includes("cooling")) score += 14;
+    if (p.price < input.budgetLimit * 0.5) score += 4;
     return { p, score };
   });
   scored.sort((a, b) => b.score - a.score);
