@@ -55,14 +55,14 @@ export function detectAntiBuy(product: ProductDTO): AntiBuyResult {
 // Claude prompt + response schema
 // ---------------------------------------------------------------------------
 
-const aiResponseSchema = z.object({
+export const aiResponseSchema = z.object({
   primaryProductId: z.string().nullable(),
   alternativeProductIds: z.array(z.string()).max(2),
   confidence: z.number().min(0).max(100),
   reasoning_short: z.string().min(1).max(160),
 });
 
-type AIResponse = z.infer<typeof aiResponseSchema>;
+export type AIResponse = z.infer<typeof aiResponseSchema>;
 
 const SYSTEM_PROMPT = `You are FlowBuy's Decision Orchestrator. Your job: pick ONE product to recommend right now, plus up to TWO alternatives, from the candidate list.
 
@@ -156,10 +156,8 @@ export async function runOrchestrator(
     };
   }
 
-  const ai =
-    config.useMockAi || !config.anthropicApiKey
-      ? mockOrchestrate(input)
-      : await callClaude(input);
+  const useMock = !forceClaudePath && (config.useMockAi || !config.anthropicApiKey);
+  const ai = useMock ? mockOrchestrate(input) : await callClaude(input);
 
   // Apply Decision Kill at the orchestrator boundary too — defends against a
   // model that ignores the rule.
@@ -213,8 +211,48 @@ export async function runOrchestrator(
 // Claude call
 // ---------------------------------------------------------------------------
 
+/**
+ * Subset of the Anthropic SDK surface the orchestrator actually uses.
+ * Lets tests inject a stub client without dragging in the whole SDK.
+ */
+export interface AnthropicLike {
+  messages: {
+    create: (params: {
+      model: string;
+      max_tokens: number;
+      temperature: number;
+      system: string;
+      messages: Array<{ role: "user"; content: string }>;
+    }) => Promise<{ content: Array<{ type: string; text?: string }> }>;
+  };
+}
+
+// Test seam: tests replace this to inject a stub client. Default factory
+// reads ANTHROPIC_API_KEY at call time so config changes between tests are
+// honoured.
+let clientFactory: () => AnthropicLike = () =>
+  new Anthropic({ apiKey: config.anthropicApiKey }) as unknown as AnthropicLike;
+
+// Tests flip this to exercise the Claude branch in runOrchestrator without
+// a real API key. Production code never sets it.
+let forceClaudePath = false;
+
+export const __testHooks = {
+  setClientFactory: (f: () => AnthropicLike) => {
+    clientFactory = f;
+  },
+  forceClaudePath: (v: boolean) => {
+    forceClaudePath = v;
+  },
+  reset: () => {
+    clientFactory = () =>
+      new Anthropic({ apiKey: config.anthropicApiKey }) as unknown as AnthropicLike;
+    forceClaudePath = false;
+  },
+};
+
 async function callClaude(input: OrchestratorInput): Promise<AIResponse> {
-  const client = new Anthropic({ apiKey: config.anthropicApiKey });
+  const client = clientFactory();
   const userPrompt = buildUserPrompt(input);
 
   const msg = await client.messages.create({
@@ -226,18 +264,37 @@ async function callClaude(input: OrchestratorInput): Promise<AIResponse> {
   });
 
   const textBlock = msg.content.find((b) => b.type === "text");
-  if (!textBlock || textBlock.type !== "text") {
+  if (!textBlock || typeof textBlock.text !== "string") {
     throw new Error("Claude returned no text block");
   }
-  const cleaned = stripJsonFences(textBlock.text);
-  const parsed = aiResponseSchema.safeParse(JSON.parse(cleaned));
+  return parseClaudeResponseText(textBlock.text);
+}
+
+/**
+ * Parse Claude's raw text into our typed AI response. Handles:
+ *   - leading/trailing whitespace
+ *   - ```json ... ``` markdown fences (model sometimes ignores rule #1)
+ *   - ``` ... ``` fences without a language tag
+ *   - JSON parse errors (wraps with a clear message)
+ *   - Zod schema mismatches (wraps with the validation error)
+ */
+export function parseClaudeResponseText(text: string): AIResponse {
+  const cleaned = stripJsonFences(text);
+  let json: unknown;
+  try {
+    json = JSON.parse(cleaned);
+  } catch (e) {
+    const reason = e instanceof Error ? e.message : String(e);
+    throw new Error(`Claude returned non-JSON text: ${reason}`);
+  }
+  const parsed = aiResponseSchema.safeParse(json);
   if (!parsed.success) {
     throw new Error(`Invalid AI response: ${parsed.error.message}`);
   }
   return parsed.data;
 }
 
-function stripJsonFences(s: string): string {
+export function stripJsonFences(s: string): string {
   const trimmed = s.trim();
   if (trimmed.startsWith("```")) {
     return trimmed.replace(/^```[a-zA-Z]*\n?/, "").replace(/```\s*$/, "").trim();
