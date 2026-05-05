@@ -11,6 +11,7 @@ import {
 import { Link } from "expo-router";
 import { ProductCard } from "../components/ProductCard";
 import { AlternativesRow } from "../components/AlternativesRow";
+import { useLocation } from "../hooks/useLocation";
 import { fetchFeed, postInteract } from "../lib/api";
 import type { FeedResponse, ProductDTO } from "../../shared/types";
 
@@ -22,11 +23,17 @@ export default function FeedScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const location = useLocation();
 
   const load = useCallback(async () => {
     try {
       setError(null);
-      const data = await fetchFeed(DEMO_USER_ID);
+      const data = await fetchFeed({
+        userId: DEMO_USER_ID,
+        ...(location.status === "granted"
+          ? { lat: location.lat, lon: location.lon, city: location.city ?? undefined }
+          : {}),
+      });
       setFeed(data);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -34,11 +41,15 @@ export default function FeedScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [location]);
 
   useEffect(() => {
+    // Wait for the location hook to settle (granted/denied/error) before
+    // making the first /feed call so the user doesn't see Amsterdam flash
+    // and then their real city.
+    if (location.status === "loading") return;
     load();
-  }, [load]);
+  }, [load, location.status]);
 
   const onSwipeBuy = useCallback(async () => {
     if (!feed?.primary) return;

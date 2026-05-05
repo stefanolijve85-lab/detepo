@@ -9,13 +9,26 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "app.flowbuy.mobile"
+      "bundleIdentifier": "app.flowbuy.mobile",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "FlowBuy uses your location to recommend products that match the local weather (e.g. an umbrella when it's raining)."
+      }
     },
     "android": {
-      "package": "app.flowbuy.mobile"
+      "package": "app.flowbuy.mobile",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION"
+      ]
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "FlowBuy uses your location to recommend products that match the local weather."
+        }
+      ]
     ],
     "extra": {
       "apiBaseUrl": "http://localhost:4000"

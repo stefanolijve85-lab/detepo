@@ -24,8 +24,19 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export async function fetchFeed(userId: string): Promise<FeedResponse> {
-  return http<FeedResponse>(`/feed?userId=${encodeURIComponent(userId)}`);
+export interface FetchFeedArgs {
+  userId: string;
+  lat?: number;
+  lon?: number;
+  city?: string;
+}
+
+export async function fetchFeed(args: FetchFeedArgs): Promise<FeedResponse> {
+  const params = new URLSearchParams({ userId: args.userId });
+  if (args.lat !== undefined) params.set("lat", String(args.lat));
+  if (args.lon !== undefined) params.set("lon", String(args.lon));
+  if (args.city) params.set("city", args.city);
+  return http<FeedResponse>(`/feed?${params.toString()}`);
 }
 
 export async function postInteract(req: InteractRequest): Promise<{ id: string }> {
