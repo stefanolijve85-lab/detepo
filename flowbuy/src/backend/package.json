@@ -11,6 +11,7 @@
     "test": "node --import tsx --test test/*.test.ts",
     "test:integration": "node --import tsx --test test/integration/*.test.ts",
     "verify:claude": "tsx scripts/verify-claude.ts",
+    "verify:weather": "tsx scripts/verify-weather.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
