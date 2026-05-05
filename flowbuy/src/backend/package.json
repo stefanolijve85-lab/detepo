@@ -9,6 +9,7 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --import tsx --test test/*.test.ts",
+    "test:integration": "node --import tsx --test test/integration/*.test.ts",
     "verify:claude": "tsx scripts/verify-claude.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
