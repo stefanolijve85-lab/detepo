@@ -1,0 +1,127 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---- Enums ----------------------------------------------------------------
+
+enum InteractionAction {
+  SWIPE_SKIP
+  SWIPE_BUY
+  BUY
+  ANTI_BUY_SHOWN
+  ALT_CHOSEN
+  AUTO_BOUGHT
+  IMPRESSION
+}
+
+enum ProductCategory {
+  APPAREL
+  ELECTRONICS
+  GROCERY
+  HOME
+  BEAUTY
+  OUTDOOR
+  OTHER
+}
+
+// ---- Models ---------------------------------------------------------------
+
+model User {
+  id               String   @id @default(cuid())
+  email            String   @unique
+  displayName      String?
+  budgetLimit      Decimal  @default(150.00) @db.Decimal(10, 2)
+  autoBuyEnabled   Boolean  @default(false)
+  // Free-form personalization signals: sizes, brand affinities, allergies, etc.
+  preferences      Json     @default("{}")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  interactions     Interaction[]
+  contexts         UserContext[]
+  recommendations  Recommendation[]
+}
+
+model Product {
+  id          String          @id @default(cuid())
+  sku         String          @unique
+  title       String
+  brand       String?
+  category    ProductCategory @default(OTHER)
+  price       Decimal         @db.Decimal(10, 2)
+  currency    String          @default("EUR")
+  imageUrl    String
+  // metadata holds: pros[], cons[], rating, tags[], priceHistory[], description
+  metadata    Json            @default("{}")
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  interactions       Interaction[]
+  primaryRecs        Recommendation[] @relation("PrimaryProduct")
+  alternativeOnRecs  Recommendation[] @relation("AlternativeProducts")
+
+  @@index([category])
+}
+
+model Interaction {
+  id          String            @id @default(cuid())
+  userId      String
+  productId   String?
+  action      InteractionAction
+  // Captures the state at time of action: confidence, reason, antiBuy flag, etc.
+  payload     Json              @default("{}")
+  createdAt   DateTime          @default(now())
+
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product     Product?          @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([productId])
+  @@index([action])
+}
+
+model UserContext {
+  id           String   @id @default(cuid())
+  userId       String
+  city         String?
+  lat          Float?
+  lon          Float?
+  // Cached weather payload from OpenWeather (or mock).
+  weather      Json     @default("{}")
+  // ISO-8601 string for the local time when this context was captured.
+  localTime    String?
+  createdAt    DateTime @default(now())
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+// One row per orchestrator decision. Lets us audit AI output and tie it to
+// downstream interactions for the learning loop.
+model Recommendation {
+  id              String   @id @default(cuid())
+  userId          String
+  primaryProductId String
+  // Confidence the orchestrator returned for the primary pick (0-100).
+  confidence      Int
+  reasoningShort  String
+  // True when the orchestrator flagged the primary product as overpriced
+  // vs its 6-month average.
+  antiBuy         Boolean  @default(false)
+  antiBuyReason   String?
+  // Snapshot of the context used to make the call.
+  contextSnapshot Json     @default("{}")
+  createdAt       DateTime @default(now())
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  primary         Product  @relation("PrimaryProduct", fields: [primaryProductId], references: [id])
+  alternatives    Product[] @relation("AlternativeProducts")
+
+  @@index([userId, createdAt])
+}

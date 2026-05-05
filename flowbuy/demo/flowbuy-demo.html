@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#0B0B0F">
+<title>FlowBuy — Demo</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: #0B0B0F; color: #fff;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", Roboto, sans-serif;
+    overscroll-behavior: none;
+  }
+  body { display: flex; flex-direction: column; }
+  .header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 16px 6px;
+  }
+  .header-city { font-size: 18px; font-weight: 700; }
+  .header-weather { font-size: 13px; color: #8B8B97; margin-top: 2px; }
+  .header-right { display: flex; gap: 8px; align-items: center; }
+  .pill-btn {
+    padding: 8px 14px; font-size: 13px; font-weight: 600;
+    background: #15151B; color: #E8E8F0;
+    border: 1px solid #23232C; border-radius: 999px;
+    cursor: pointer;
+  }
+  .pill-btn.active { color: #1FB57A; border-color: #1FB57A; }
+
+  /* --- Card stack --- */
+  .stage {
+    flex: 1; position: relative;
+    padding: 0 16px 16px; max-width: 480px;
+    width: 100%; margin: 0 auto;
+    display: flex; flex-direction: column; gap: 16px;
+    overflow: hidden;
+  }
+  .card {
+    background: #15151B; border: 1px solid #23232C;
+    border-radius: 24px; overflow: hidden;
+    touch-action: pan-y;
+    position: relative;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+    user-select: none;
+  }
+  .card.flying-right { transform: translateX(140%) rotate(14deg); opacity: 0; }
+  .card.flying-left  { transform: translateX(-140%) rotate(-14deg); opacity: 0; }
+  .card.dragging { transition: none; }
+
+  .corner-hint {
+    position: absolute; top: 24px;
+    padding: 6px 12px; border-radius: 8px;
+    border: 2px solid; font-weight: 800; letter-spacing: 1px;
+    color: #fff; opacity: 0;
+    pointer-events: none;
+  }
+  .corner-hint.buy  { right: 24px; border-color: #1FB57A; }
+  .corner-hint.skip { left: 24px;  border-color: #E25A5A; }
+
+  .card img {
+    width: 100%; height: 320px; object-fit: cover; display: block;
+    background: #23232C;
+  }
+  .body { padding: 18px 18px 16px; display: flex; flex-direction: column; gap: 10px; }
+  .title-row { display: flex; justify-content: space-between; align-items: center; }
+  .brand { color: #8B8B97; font-size: 12px; letter-spacing: 0.5px; text-transform: uppercase; }
+  .title { font-size: 22px; font-weight: 700; line-height: 1.25; }
+  .price-row { display: flex; align-items: center; gap: 10px; }
+  .price { font-size: 26px; font-weight: 800; }
+  .anti-buy-tag {
+    background: rgba(226,90,90,0.15); border: 1px solid #E25A5A;
+    padding: 3px 8px; border-radius: 6px;
+    font-size: 11px; font-weight: 800; letter-spacing: 1px;
+    color: #E25A5A;
+  }
+
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 10px; border-radius: 999px;
+    border: 1px solid; font-size: 12px; font-weight: 700;
+  }
+  .pill .dot { width: 6px; height: 6px; border-radius: 3px; }
+
+  .bubble {
+    background: #1E1E27; border: 1px solid #2A2A36;
+    border-radius: 14px; padding: 12px 14px;
+  }
+  .bubble-label { color: #8B8B97; font-size: 12px; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .bubble-text { color: #E8E8F0; font-size: 15px; line-height: 1.4; }
+
+  .warning-box {
+    background: rgba(226,90,90,0.08);
+    border: 1px solid rgba(226,90,90,0.5);
+    border-radius: 14px; padding: 12px 14px;
+  }
+  .warning-title { color: #E25A5A; font-weight: 800; margin-bottom: 4px; }
+  .warning-body { color: #FFB4B4; font-size: 14px; line-height: 1.4; }
+
+  .buy-btn {
+    background: #1FB57A; color: #0B0B0F;
+    padding: 14px; border: 0; border-radius: 14px;
+    font-size: 16px; font-weight: 800; letter-spacing: 0.5px;
+    cursor: pointer;
+    width: 100%;
+  }
+  .swipe-hint { color: #5A5A66; font-size: 12px; text-align: center; }
+
+  /* --- Alternatives row --- */
+  .alts { display: flex; flex-direction: column; gap: 8px; }
+  .alts-label { color: #8B8B97; font-size: 12px; letter-spacing: 0.5px; text-transform: uppercase; }
+  .alts-items { display: flex; gap: 10px; }
+  .alt {
+    flex: 1; display: flex; align-items: center; gap: 10px;
+    background: #15151B; border: 1px solid #23232C;
+    border-radius: 12px; padding: 8px;
+    cursor: pointer;
+  }
+  .alt:active { opacity: 0.7; }
+  .alt img { width: 48px; height: 48px; border-radius: 8px; object-fit: cover; background: #23232C; }
+  .alt-text { flex: 1; min-width: 0; }
+  .alt-title { color: #E8E8F0; font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .alt-price { color: #8B8B97; font-size: 12px; margin-top: 2px; }
+
+  /* --- Decision Kill card --- */
+  .kill-card {
+    background: #15151B; border: 1px solid #23232C;
+    border-radius: 16px; padding: 24px; text-align: center;
+  }
+  .kill-title { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+  .kill-body { color: #8B8B97; font-size: 14px; }
+
+  /* --- Toast --- */
+  .toast {
+    position: fixed; left: 50%; transform: translateX(-50%);
+    bottom: 24px; z-index: 99;
+    background: #1E1E27; color: #E8E8F0;
+    border: 1px solid #2A2A36; border-radius: 12px;
+    padding: 10px 16px; font-size: 13px;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, -8px); }
+
+  /* --- Settings sheet --- */
+  .sheet-bg {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+    opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
+    z-index: 50;
+  }
+  .sheet-bg.open { opacity: 1; pointer-events: auto; }
+  .sheet {
+    position: fixed; left: 0; right: 0; bottom: 0;
+    background: #15151B; border-top: 1px solid #23232C;
+    border-radius: 24px 24px 0 0;
+    padding: 20px 18px calc(20px + env(safe-area-inset-bottom));
+    transform: translateY(100%); transition: transform 0.25s ease;
+    z-index: 60;
+  }
+  .sheet.open { transform: translateY(0); }
+  .sheet h2 { margin: 0 0 14px; font-size: 17px; }
+  .row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 14px; background: #1E1E27;
+    border: 1px solid #2A2A36; border-radius: 14px;
+    margin-bottom: 10px;
+  }
+  .row-text { flex: 1; }
+  .row-label { font-weight: 700; font-size: 14px; }
+  .row-help { color: #8B8B97; font-size: 12px; margin-top: 2px; }
+
+  .switch {
+    --w: 44px; --h: 26px;
+    width: var(--w); height: var(--h);
+    border-radius: var(--h); background: #2A2A36;
+    border: none; padding: 2px; position: relative; cursor: pointer;
+    transition: background 0.2s ease;
+  }
+  .switch::after {
+    content: ""; position: absolute;
+    width: calc(var(--h) - 6px); height: calc(var(--h) - 6px);
+    border-radius: 50%; background: #fff;
+    top: 3px; left: 3px;
+    transition: left 0.2s ease;
+  }
+  .switch.on { background: #1FB57A; }
+  .switch.on::after { left: calc(var(--w) - var(--h) + 3px); }
+
+  .demo-banner {
+    background: #1E1E27; color: #8B8B97;
+    border-bottom: 1px solid #23232C;
+    padding: 6px 16px; font-size: 11px; text-align: center; letter-spacing: 0.5px;
+  }
+</style>
+</head>
+<body>
+
+<div class="demo-banner">FlowBuy MVP — interactive UI mock · swipe right to buy, left to skip</div>
+
+<div class="header">
+  <div>
+    <div class="header-city" id="city">Amsterdam</div>
+    <div class="header-weather" id="weather">rain · 6°C</div>
+  </div>
+  <div class="header-right">
+    <button class="pill-btn" id="settings-btn">Settings</button>
+  </div>
+</div>
+
+<div class="stage" id="stage"></div>
+
+<div class="toast" id="toast"></div>
+
+<div class="sheet-bg" id="sheet-bg"></div>
+<div class="sheet" id="sheet">
+  <h2>Settings</h2>
+  <div class="row">
+    <div class="row-text">
+      <div class="row-label">Auto-Buy</div>
+      <div class="row-help">Let FlowBuy auto-purchase a high-confidence pick within budget.</div>
+    </div>
+    <button class="switch" id="auto-buy"></button>
+  </div>
+  <div class="row">
+    <div class="row-text">
+      <div class="row-label">Price Drop Alerts</div>
+      <div class="row-help">Notify when an Anti-Buy item drops below its 6-month average.</div>
+    </div>
+    <button class="switch on" id="price-drop"></button>
+  </div>
+  <button class="pill-btn" id="close-sheet" style="width:100%; margin-top:6px;">Close</button>
+</div>
+
+<script>
+// --- Mirrors flowbuy/src/backend/src/data/mockProducts.ts -------------------
+const PRODUCTS = [
+  {
+    id: "warm-001", sku: "WARM-001", title: "Merino Wool Beanie",
+    brand: "Patagonia", price: 32.00, currency: "EUR",
+    img: "https://images.unsplash.com/photo-1576871337622-98d48d1cf531?w=800",
+    rating: 4.7, tags: ["warm","winter","merino"],
+    priceHistory: [30,32,30,31,32,32],
+  },
+  {
+    id: "rain-001", sku: "RAIN-001", title: "Compact Travel Umbrella",
+    brand: "Senz", price: 24.99, currency: "EUR",
+    img: "https://images.unsplash.com/photo-1519408469771-2586093c3f14?w=800",
+    rating: 4.6, tags: ["rain","compact","travel"],
+    priceHistory: [25,26,24,24,25,25],
+  },
+  {
+    id: "rain-002", sku: "RAIN-002", title: "Waterproof Trench Coat",
+    brand: "Stutterheim", price: 89.99, currency: "EUR",
+    img: "https://images.unsplash.com/photo-1539533018447-63fcce2678e3?w=800",
+    rating: 4.4, tags: ["rain","warm","fashion"],
+    priceHistory: [60,65,60,62,65,63],   // current 89.99 is 44% over avg → Anti-Buy
+  },
+  {
+    id: "elec-001", sku: "ELEC-001", title: "Wireless Noise-Cancelling Earbuds",
+    brand: "Sony", price: 129.00, currency: "EUR",
+    img: "https://images.unsplash.com/photo-1606220588913-b3aacb4d2f46?w=800",
+    rating: 4.8, tags: ["audio","commute"],
+    priceHistory: [120,125,130,128,129,129],
+  },
+  {
+    id: "home-001", sku: "HOME-001", title: "Linen Throw Blanket",
+    brand: "HAY", price: 59.00, currency: "EUR",
+    img: "https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?w=800",
+    rating: 4.3, tags: ["warm","home","cozy"],
+    priceHistory: [55,58,60,60,59,59],
+  },
+];
+
+// --- Same scoring as mockOrchestrate in aiService.ts -----------------------
+const ANTI_BUY_THRESHOLD = 0.20;
+const CONFIDENCE_FLOOR = 70;
+
+function scoreProducts(products, ctx) {
+  return products.map(p => {
+    const tags = p.tags;
+    let s = 20 + p.rating * 12;
+    if (ctx.conditions === "rain" && tags.includes("rain")) s += 18;
+    if (ctx.temperatureC < 8 && tags.includes("warm")) s += 14;
+    if (ctx.temperatureC > 25 && tags.includes("cooling")) s += 14;
+    return { p, s };
+  }).sort((a,b) => b.s - a.s);
+}
+
+function detectAntiBuy(p) {
+  if (!p.priceHistory || p.priceHistory.length === 0) return null;
+  const avg = p.priceHistory.reduce((a,b)=>a+b,0) / p.priceHistory.length;
+  if (avg <= 0) return null;
+  const ratio = (p.price - avg) / avg;
+  if (ratio > ANTI_BUY_THRESHOLD) {
+    const pct = Math.round(ratio * 100);
+    return `This is ${pct}% above the 6-month average (€${avg.toFixed(2)}). Wait — a price drop is likely.`;
+  }
+  return null;
+}
+
+function reasonFor(top, ctx) {
+  if (ctx.conditions === "rain") {
+    return `It's raining in ${ctx.city} — ${top.title.toLowerCase()} keeps you dry.`;
+  }
+  if (ctx.temperatureC < 8) {
+    return `It's ${ctx.temperatureC}°C in ${ctx.city} — stay warm with this.`;
+  }
+  if (ctx.temperatureC > 25) {
+    return `${ctx.temperatureC}°C and clear in ${ctx.city} — perfect timing.`;
+  }
+  return "Top-rated pick that fits your budget and recent activity.";
+}
+
+// --- State -----------------------------------------------------------------
+const state = {
+  ctx: { city: "Amsterdam", conditions: "rain", temperatureC: 6 },
+  bought: new Set(),
+  skipped: new Set(),
+  autoBuy: false,
+  priceDrop: true,
+};
+
+function recommend() {
+  const eligible = PRODUCTS.filter(p => !state.bought.has(p.id) && !state.skipped.has(p.id));
+  if (eligible.length === 0) return { kill: true, reason: "You've seen everything we'd recommend right now." };
+  const scored = scoreProducts(eligible, state.ctx);
+  const top = scored[0];
+  const confidence = Math.min(96, Math.round(top.s));
+  if (confidence < CONFIDENCE_FLOOR) {
+    return { kill: true, reason: "Nothing in the catalog confidently matches your context." };
+  }
+  return {
+    kill: false,
+    primary: top.p,
+    confidence,
+    reasoning: reasonFor(top.p, state.ctx),
+    alts: scored.slice(1, 3).map(x => x.p),
+    antiBuyWarning: detectAntiBuy(top.p),
+  };
+}
+
+// --- Render ----------------------------------------------------------------
+const stage = document.getElementById("stage");
+const toastEl = document.getElementById("toast");
+
+function fmtEUR(n) { return "€" + n.toFixed(2); }
+
+function confidenceTone(c) {
+  if (c >= 85) return "#1FB57A";
+  if (c >= 70) return "#E0B040";
+  return "#E25A5A";
+}
+
+function render() {
+  stage.innerHTML = "";
+  const r = recommend();
+
+  if (r.kill) {
+    const div = document.createElement("div");
+    div.className = "kill-card";
+    div.innerHTML = `
+      <div class="kill-title">Nothing to recommend right now</div>
+      <div class="kill-body">${r.reason}</div>
+      <button class="pill-btn" id="reset" style="margin-top:14px;">Start over</button>`;
+    stage.appendChild(div);
+    document.getElementById("reset").onclick = () => {
+      state.bought.clear(); state.skipped.clear(); render();
+    };
+    return;
+  }
+
+  const tone = confidenceTone(r.confidence);
+  const card = document.createElement("div");
+  card.className = "card";
+  card.innerHTML = `
+    <div class="corner-hint buy">BUY</div>
+    <div class="corner-hint skip">SKIP</div>
+    <img src="${r.primary.img}" alt="">
+    <div class="body">
+      <div class="title-row">
+        <div class="brand">${r.primary.brand}</div>
+        <div class="pill" style="border-color:${tone}; color:${tone};">
+          <span class="dot" style="background:${tone};"></span>
+          Confidence ${r.confidence}
+        </div>
+      </div>
+      <div class="title">${r.primary.title}</div>
+      <div class="price-row">
+        <div class="price">${fmtEUR(r.primary.price)}</div>
+        ${r.antiBuyWarning ? '<div class="anti-buy-tag">ANTI-BUY</div>' : ""}
+      </div>
+      <div class="bubble">
+        <div class="bubble-label">Why this?</div>
+        <div class="bubble-text">${r.reasoning}</div>
+      </div>
+      ${r.antiBuyWarning
+        ? `<div class="warning-box">
+             <div class="warning-title">Wait — don't buy yet</div>
+             <div class="warning-body">${r.antiBuyWarning}</div>
+           </div>`
+        : `<button class="buy-btn">Buy</button>`}
+      <div class="swipe-hint">Swipe right to buy · left to skip</div>
+    </div>`;
+  stage.appendChild(card);
+
+  if (r.alts.length) {
+    const alts = document.createElement("div");
+    alts.className = "alts";
+    alts.innerHTML = `
+      <div class="alts-label">Or try</div>
+      <div class="alts-items">
+        ${r.alts.map(a => `
+          <div class="alt" data-id="${a.id}">
+            <img src="${a.img}" alt="">
+            <div class="alt-text">
+              <div class="alt-title">${a.title}</div>
+              <div class="alt-price">${fmtEUR(a.price)}</div>
+            </div>
+          </div>`).join("")}
+      </div>`;
+    stage.appendChild(alts);
+    alts.querySelectorAll(".alt").forEach(el => {
+      el.addEventListener("click", () => {
+        toast(`Picked alternative: ${PRODUCTS.find(p=>p.id===el.dataset.id).title}`);
+        state.bought.add(el.dataset.id);
+        render();
+      });
+    });
+  }
+
+  // Wire the Buy button (only present when no Anti-Buy).
+  const buyBtn = card.querySelector(".buy-btn");
+  if (buyBtn) buyBtn.addEventListener("click", () => doBuy(r.primary, r.confidence));
+
+  attachSwipe(card, r);
+}
+
+function attachSwipe(card, rec) {
+  let startX = 0, dx = 0, dragging = false;
+  const buyHint = card.querySelector(".corner-hint.buy");
+  const skipHint = card.querySelector(".corner-hint.skip");
+
+  function onDown(e) {
+    dragging = true;
+    startX = (e.touches ? e.touches[0].clientX : e.clientX);
+    dx = 0;
+    card.classList.add("dragging");
+  }
+  function onMove(e) {
+    if (!dragging) return;
+    const x = (e.touches ? e.touches[0].clientX : e.clientX);
+    dx = x - startX;
+    const rot = (dx / window.innerWidth) * 14;
+    card.style.transform = `translateX(${dx}px) rotate(${rot}deg)`;
+    buyHint.style.opacity  = Math.max(0,  dx / 120);
+    skipHint.style.opacity = Math.max(0, -dx / 120);
+  }
+  function onUp() {
+    if (!dragging) return;
+    dragging = false;
+    card.classList.remove("dragging");
+    if (dx > 120) {
+      card.classList.add("flying-right");
+      setTimeout(() => doBuy(rec.primary, rec.confidence), 200);
+    } else if (dx < -120) {
+      card.classList.add("flying-left");
+      setTimeout(() => doSkip(rec.primary), 200);
+    } else {
+      card.style.transform = "";
+      buyHint.style.opacity = 0;
+      skipHint.style.opacity = 0;
+    }
+  }
+  card.addEventListener("touchstart", onDown, { passive: true });
+  card.addEventListener("touchmove",  onMove, { passive: true });
+  card.addEventListener("touchend",   onUp);
+  card.addEventListener("mousedown",  onDown);
+  window.addEventListener("mousemove", onMove);
+  window.addEventListener("mouseup",   onUp);
+}
+
+function doBuy(p, confidence) {
+  state.bought.add(p.id);
+  toast(`Bought: ${p.title} · ${fmtEUR(p.price)}`);
+  render();
+}
+function doSkip(p) {
+  state.skipped.add(p.id);
+  toast(`Skipped: ${p.title}`);
+  render();
+}
+
+let toastTimer = null;
+function toast(msg) {
+  toastEl.textContent = msg;
+  toastEl.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove("show"), 1600);
+}
+
+// --- Settings sheet --------------------------------------------------------
+const sheet = document.getElementById("sheet");
+const sheetBg = document.getElementById("sheet-bg");
+const autoBuyEl = document.getElementById("auto-buy");
+const priceDropEl = document.getElementById("price-drop");
+
+document.getElementById("settings-btn").onclick = () => {
+  sheet.classList.add("open");
+  sheetBg.classList.add("open");
+};
+document.getElementById("close-sheet").onclick = closeSheet;
+sheetBg.onclick = closeSheet;
+function closeSheet() {
+  sheet.classList.remove("open");
+  sheetBg.classList.remove("open");
+}
+autoBuyEl.onclick = () => {
+  state.autoBuy = !state.autoBuy;
+  autoBuyEl.classList.toggle("on", state.autoBuy);
+  toast(state.autoBuy ? "Auto-Buy enabled" : "Auto-Buy disabled");
+};
+priceDropEl.onclick = () => {
+  state.priceDrop = !state.priceDrop;
+  priceDropEl.classList.toggle("on", state.priceDrop);
+};
+
+render();
+</script>
+</body>
+</html>

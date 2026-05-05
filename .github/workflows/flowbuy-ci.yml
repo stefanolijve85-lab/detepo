@@ -1,0 +1,111 @@
+name: flowbuy-ci
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "flowbuy/**"
+      - ".github/workflows/flowbuy-ci.yml"
+  pull_request:
+    paths:
+      - "flowbuy/**"
+      - ".github/workflows/flowbuy-ci.yml"
+
+# Cancel an in-flight run for the same ref when a new commit lands.
+concurrency:
+  group: flowbuy-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: backend (typecheck + test)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: flowbuy/src/backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: flowbuy/src/backend/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      # The Prisma client must be generated before tsc sees @prisma/client.
+      # No database is needed for typecheck or unit tests — the orchestrator
+      # tests run through the mock path because ANTHROPIC_API_KEY is unset.
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+  integration:
+    name: backend (integration vs Postgres)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: flowbuy
+          POSTGRES_PASSWORD: flowbuy_dev
+          POSTGRES_DB: flowbuy
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U flowbuy -d flowbuy"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://flowbuy:flowbuy_dev@localhost:5432/flowbuy?schema=public
+      USE_MOCK_AI: "true"
+      USE_MOCK_WEATHER: "true"
+    defaults:
+      run:
+        working-directory: flowbuy/src/backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: flowbuy/src/backend/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Apply migrations
+        run: npx prisma migrate deploy
+
+      - name: Integration tests
+        run: npm run test:integration
+
+  frontend:
+    name: frontend (typecheck)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: flowbuy/src/frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: flowbuy/src/frontend/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
