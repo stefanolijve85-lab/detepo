@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "name": "FlowBuy",
+    "slug": "flowbuy",
+    "scheme": "flowbuy",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "app.flowbuy.mobile"
+    },
+    "android": {
+      "package": "app.flowbuy.mobile"
+    },
+    "plugins": [
+      "expo-router"
+    ],
+    "extra": {
+      "apiBaseUrl": "http://localhost:4000"
+    }
+  }
+}
